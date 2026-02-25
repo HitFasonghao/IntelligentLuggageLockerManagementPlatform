@@ -24,7 +24,7 @@ public class JsonUtil {
     }
 
     public static <T> T toObject(String json, Class<T> clazz) {
-        if (clazz == null || json == null) {
+        if (clazz == null || StringUtils.isBlank(json)) {
             return null;
         }
 
@@ -51,7 +51,7 @@ public class JsonUtil {
     }
 
     public static <T> T[] toArray(String json, Class<T[]> arrayClass) {
-        if (json == null || arrayClass == null) {
+        if (StringUtils.isBlank(json) || arrayClass == null) {
             return null;
         }
 

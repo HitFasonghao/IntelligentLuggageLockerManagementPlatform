@@ -2,7 +2,9 @@ package org.example.interceptor;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.example.common.PcUserInfo;
 import org.example.constants.Constants;
+import org.example.util.JsonUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -17,7 +19,7 @@ import java.util.concurrent.TimeUnit;
  * @author fasonghao
  */
 @Component
-public class AdminInterceptor implements HandlerInterceptor {
+public class PcUserInterceptor implements HandlerInterceptor {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
@@ -49,11 +51,11 @@ public class AdminInterceptor implements HandlerInterceptor {
         }
 
         //将用户信息存入request属性中，供后续业务使用
-        request.setAttribute("userInfo", userInfoJson);
-        request.setAttribute("token", token);
+        PcUserInfo pcUserInfo= JsonUtil.toObject(userInfoJson, PcUserInfo.class);
+        request.setAttribute("pcUserInfo", pcUserInfo);
 
-        //可选：续期token（每次请求都重新设置过期时间）
-        redisTemplate.expire(Constants.TOKEN_PREFIX + token, Constants.TOKEN_EXPIRE_TIME, TimeUnit.MINUTES);
+        //续期token（每次请求都重新设置过期时间）
+        redisTemplate.expire(Constants.TOKEN_PREFIX + token, Constants.TOKEN_EXPIRE_TIME, TimeUnit.SECONDS);
 
         return true;
     }

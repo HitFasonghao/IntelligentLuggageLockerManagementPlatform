@@ -100,7 +100,7 @@ public class LoginServiceImpl implements LoginService {
      */
     @Override
     public HttpResponseVO<AccessTokenVO> loginBySmsCode(LoginBySmsCodeDTO loginBySmsCodeDTO) {
-        String smsCode=redisTemplate.opsForValue().get(Constants.SMS_CODE_PREFIX+loginBySmsCodeDTO.getPhone());
+        String smsCode=redisTemplate.opsForValue().get(Constants.LOGIN_SMS_CODE_PREFIX+loginBySmsCodeDTO.getPhone());
         //判断验证码是否存在
         if(smsCode==null||!smsCode.equals(loginBySmsCodeDTO.getCode())){
             return HttpResponseVO.<AccessTokenVO>builder()
@@ -182,7 +182,7 @@ public class LoginServiceImpl implements LoginService {
      */
     @Override
     public HttpResponseVO<String> sendSmsCode(SendSmsCodeDTO sendSmsCodeDTO) {
-        String key=Constants.SMS_CODE_PREFIX+ sendSmsCodeDTO.getPhone();
+        String key=sendSmsCodeDTO.getPurpose().getName()+ sendSmsCodeDTO.getPhone();
         //检查redis中是否存有手机号对应的验证码
         if((Constants.SMS_CODE_EXPIRE_TIME-redisTemplate.getExpire(key))<Constants.SMS_CODE_SPAN){
             //如果有，且时间间隔小于两次发送的间隔，拒绝发送

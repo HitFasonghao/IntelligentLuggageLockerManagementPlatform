@@ -14,8 +14,12 @@ public interface Constants {
     String SMS_CODE_URL="https://push.spug.cc/sms/ZGB9gWWHR3usXSwmO0IO2w";
     //短信验证码发送署名
     String SMS_CODE_NAME="行李寄存柜管理平台";
-    //短信验证码在Redis中前缀
-    String SMS_CODE_PREFIX="smsCode:";
+    //登录所用短信验证码在Redis中前缀
+    String LOGIN_SMS_CODE_PREFIX="login:smsCode:";
+    //修改密码所用短信验证码在Redis中前缀
+    String UPDATE_PASSWORD_SMS_CODE_PREFIX="updatePassword:smsCode:";
+    //更换绑定手机号所用短信验证码在Redis中前缀
+    String UPDATE_PHONE_SMS_CODE_PREFIX="updatePhone:smsCode:";
     //短信验证码有效期
     int SMS_CODE_EXPIRE_TIME=300;
     //短信验证码相邻两次发送间隔

@@ -3,6 +3,7 @@ package org.example.interceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.example.common.PcUserInfo;
+import org.example.common.UserContext;
 import org.example.constants.Constants;
 import org.example.util.JsonUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,13 +51,19 @@ public class PcUserInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        //将用户信息存入request属性中，供后续业务使用
+        //将用户信息存入线程中，供后续业务使用
         PcUserInfo pcUserInfo= JsonUtil.toObject(userInfoJson, PcUserInfo.class);
-        request.setAttribute("pcUserInfo", pcUserInfo);
+        UserContext.set(pcUserInfo);
 
         //续期token（每次请求都重新设置过期时间）
         redisTemplate.expire(Constants.TOKEN_PREFIX + token, Constants.TOKEN_EXPIRE_TIME, TimeUnit.SECONDS);
 
         return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        //从线程中移除上下文信息
+        UserContext.remove();
     }
 }

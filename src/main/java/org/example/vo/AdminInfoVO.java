@@ -1,7 +1,6 @@
 package org.example.vo;
 
 import lombok.Data;
-import org.example.enums.VendorUserStatusEnum;
 
 import java.time.LocalDateTime;
 
@@ -9,18 +8,19 @@ import java.time.LocalDateTime;
  * @author fasonghao
  */
 @Data
-public class VendorUserInfoVO {
+public class AdminInfoVO {
+
     private String username;
+
+    private String realName;
 
     private String email;
 
     private String phone;
 
-    private String realName;
+    private Boolean isSuperAdmin;
 
-    private VendorUserStatusEnum status;
-
-    private LocalDateTime passwordChangedTime;
+    private Boolean isActive;
 
     private LocalDateTime createdTime;
 

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.example.common.PcUserInfo;
 import org.example.constants.Constants;
+import org.example.dto.CountIsExistDTO;
 import org.example.dto.LoginByPasswordDTO;
 import org.example.dto.LoginBySmsCodeDTO;
 import org.example.dto.SendSmsCodeDTO;
@@ -12,6 +13,7 @@ import org.example.mapper.PlatformAdminMapper;
 import org.example.mapper.VendorUserMapper;
 import org.example.po.PlatformAdminPO;
 import org.example.po.VendorUserPO;
+import org.example.service.CommonService;
 import org.example.service.LoginService;
 import org.example.util.JsonUtil;
 import org.example.util.TokenUtil;
@@ -48,6 +50,9 @@ public class LoginServiceImpl implements LoginService {
 
     @Autowired
     private VendorUserMapper vendorUserMapper;
+
+    @Autowired
+    private CommonService commonService;
 
     /**
      * 账密登录

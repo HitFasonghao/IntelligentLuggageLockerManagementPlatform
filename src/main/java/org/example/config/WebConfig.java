@@ -17,7 +17,12 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(pcUserInterceptor)
-                .addPathPatterns("/user/**")
-                .excludePathPatterns("/login/smsCode");
+                .addPathPatterns("/user/**",
+                        "/vendorUser/**",
+                        "/admin/**",
+                        "/login/**")
+                .excludePathPatterns("/login/smsCode",
+                        "/login/loginByPassword",
+                        "/login/loginBySmsCode");
     }
 }

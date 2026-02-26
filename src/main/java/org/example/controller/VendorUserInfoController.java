@@ -1,6 +1,8 @@
 package org.example.controller;
 
-import org.example.service.VendorUserService;
+import jakarta.validation.Valid;
+import org.example.dto.UpdateVendorUserDTO;
+import org.example.service.VendorUserInfoService;
 import org.example.vo.HttpResponseVO;
 import org.example.vo.VendorUserInfoVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,25 +14,25 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/vendorUser")
-public class VendorUserController {
+public class VendorUserInfoController {
 
     @Autowired
-    private VendorUserService vendorUserService;
+    private VendorUserInfoService vendorUserInfoService;
 
     /**
      * 查询账号信息
      */
     @GetMapping("/queryVendorUserInfo")
     public HttpResponseVO<VendorUserInfoVO> queryVendorUserInfo(){
-        return vendorUserService.queryVendorUserInfo();
+        return vendorUserInfoService.queryVendorUserInfo();
     }
 
     /**
      * 修改账号信息
      */
     @PutMapping("/updateInfo")
-    public HttpResponseVO<String> updateVendorUserInfo(){
-        return null;
+    public HttpResponseVO<String> updateVendorUserInfo(@RequestBody @Valid UpdateVendorUserDTO updateVendorUserDTO){
+        return vendorUserInfoService.updateVendorUserInfo(updateVendorUserDTO);
     }
 
     /**

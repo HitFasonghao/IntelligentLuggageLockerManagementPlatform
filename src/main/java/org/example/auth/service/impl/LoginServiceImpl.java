@@ -1,5 +1,8 @@
 package org.example.auth.service.impl;
 
+import cn.hutool.captcha.CaptchaUtil;
+import cn.hutool.captcha.ShearCaptcha;
+import cn.hutool.core.lang.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -18,6 +21,7 @@ import org.example.auth.service.LoginService;
 import org.example.auth.util.JsonUtil;
 import org.example.auth.util.TokenUtil;
 import org.example.auth.vo.AccessTokenVO;
+import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
 
 import org.slf4j.Logger;
@@ -263,6 +267,35 @@ public class LoginServiceImpl implements LoginService {
                 conn.disconnect();
             }
         }
+    }
+
+    /**
+     * 获取图形验证码
+     */
+    @Override
+    public HttpResponseVO<CaptchaVO> getCaptcha() {
+        // 生成唯一 ID (用于关联 Redis 中的验证码文本)
+        String captchaId = UUID.randomUUID().toString();
+
+        // 生成验证码图片和对应的文本
+        ShearCaptcha captcha = CaptchaUtil.createShearCaptcha(150, 50, 4, 4);
+        String code = captcha.getCode(); // 获取文本，例如 "A7b9"
+
+        //TODO:将图片转为 Base64
+        String base64Image = "";
+
+        //存入redis
+        redisTemplate.opsForValue().set(captchaId, code, 2, TimeUnit.MINUTES);
+
+        CaptchaVO captchaVO=new CaptchaVO();
+        captchaVO.setCaptchaId(captchaId);
+        captchaVO.setImageBase64(base64Image);
+
+        return HttpResponseVO.builder()
+                .data(captchaVO)
+                .code()
+                .msg()
+                .build();
     }
 
     /**

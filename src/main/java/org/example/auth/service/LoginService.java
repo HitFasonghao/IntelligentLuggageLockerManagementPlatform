@@ -3,6 +3,7 @@ package org.example.auth.service;
 import jakarta.validation.Valid;
 import org.example.auth.dto.*;
 import org.example.auth.vo.AccessTokenVO;
+import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
 
 /**
@@ -38,6 +39,11 @@ public interface LoginService {
      * 更换绑定的手机号
      */
     HttpResponseVO<String> updatePhone(@Valid UpdatePhoneDTO updatePhoneDTO);
+
+    /**
+     * 获取图形验证码
+     */
+    HttpResponseVO<CaptchaVO> getCaptcha();
 
     /**
      * 用户微信小程序登录

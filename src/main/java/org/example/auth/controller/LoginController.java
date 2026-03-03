@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import org.example.auth.dto.*;
 import org.example.auth.service.impl.LoginServiceImpl;
 import org.example.auth.vo.AccessTokenVO;
+import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,14 @@ public class LoginController {
     @PostMapping("/loginBySmsCode")
     public HttpResponseVO<AccessTokenVO> loginBySmsCode(@RequestBody @Valid LoginBySmsCodeDTO loginBySmsCodeDTO){
         return loginService.loginBySmsCode(loginBySmsCodeDTO);
+    }
+
+    /**
+     * 获取图形验证码
+     */
+    @GetMapping("/captcha")
+    public HttpResponseVO<CaptchaVO> getCaptcha(){
+        return loginService.getCaptcha();
     }
 
     /**

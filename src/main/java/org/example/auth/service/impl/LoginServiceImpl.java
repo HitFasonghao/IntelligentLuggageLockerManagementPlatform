@@ -282,7 +282,7 @@ public class LoginServiceImpl implements LoginService {
         String code = captcha.getCode(); // 获取文本，例如 "A7b9"
 
         //TODO:将图片转为 Base64
-        String base64Image = "";
+        String base64Image = captcha.getImageBase64();
 
         //存入redis
         redisTemplate.opsForValue().set(captchaId, code, 2, TimeUnit.MINUTES);
@@ -291,10 +291,10 @@ public class LoginServiceImpl implements LoginService {
         captchaVO.setCaptchaId(captchaId);
         captchaVO.setImageBase64(base64Image);
 
-        return HttpResponseVO.builder()
+        return HttpResponseVO.<CaptchaVO>builder()
                 .data(captchaVO)
-                .code()
-                .msg()
+                .code(HttpStatus.OK.value())
+                .msg("图形验证码获取成功")
                 .build();
     }
 

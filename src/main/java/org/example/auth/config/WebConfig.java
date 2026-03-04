@@ -23,6 +23,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/login/**")
                 .excludePathPatterns("/login/smsCode",
                         "/login/loginByPassword",
-                        "/login/loginBySmsCode");
+                        "/login/loginBySmsCode",
+                        "/login/captcha");
     }
 }

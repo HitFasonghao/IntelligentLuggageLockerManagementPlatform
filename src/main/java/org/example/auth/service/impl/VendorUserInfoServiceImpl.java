@@ -3,6 +3,7 @@ package org.example.auth.service.impl;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
+import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.dto.CountIsExistDTO;
 import org.example.auth.dto.UpdateVendorUserDTO;
 import org.example.auth.mapper.MapStructMapper;
@@ -13,7 +14,6 @@ import org.example.auth.service.VendorUserInfoService;
 import org.example.auth.vo.HttpResponseVO;
 import org.example.auth.vo.VendorUserInfoVO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
@@ -44,7 +44,7 @@ public class VendorUserInfoServiceImpl implements VendorUserInfoService {
         VendorUserInfoVO vendorUserInfoVO=mapStructMapper.vendorUserToInfoVO(vendorUser);
         return HttpResponseVO.<VendorUserInfoVO>builder()
                 .data(vendorUserInfoVO)
-                .code(HttpStatus.OK.value())
+                .code(HttpStatusConstants.SUCCESS)
                 .msg("账号信息查询成功")
                 .build();
     }
@@ -59,7 +59,7 @@ public class VendorUserInfoServiceImpl implements VendorUserInfoService {
         countIsExistDTO.setUsername(updateVendorUserDTO.getUsername());
         if(commonService.isExistAdmin(countIsExistDTO)||commonService.isExistVendorUser(countIsExistDTO)){
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.CONFLICT.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("用户名重复")
                     .build();
         }
@@ -87,12 +87,12 @@ public class VendorUserInfoServiceImpl implements VendorUserInfoService {
 
         if (code>0) {
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.OK.value())
+                    .code(HttpStatusConstants.SUCCESS)
                     .msg("账号信息修改成功")
                     .build();
         }else{
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.NOT_FOUND.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("更新失败，用户不存在或数据库发生变化")
                     .build();
         }

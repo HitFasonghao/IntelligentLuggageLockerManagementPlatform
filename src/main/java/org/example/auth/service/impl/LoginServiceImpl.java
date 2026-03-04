@@ -10,6 +10,7 @@ import org.example.auth.common.PasswordAndPhone;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
 import org.example.auth.constants.Constants;
+import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.dto.*;
 import org.example.auth.enums.PcUserIdentityEnum;
 import org.example.auth.mapper.PlatformAdminMapper;
@@ -28,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -65,6 +65,15 @@ public class LoginServiceImpl implements LoginService {
      */
     @Override
     public HttpResponseVO<AccessTokenVO> loginByPassword(LoginByPasswordDTO loginByPasswordDTO) {
+        //校验图形验证码是否正确
+        String code=redisTemplate.opsForValue().get(Constants.CAPTCHA_ID_PREFIX+loginByPasswordDTO.getCaptchaId());
+        if(code==null||!code.equals(loginByPasswordDTO.getCode())){
+            return HttpResponseVO.<AccessTokenVO>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("验证码错误或验证码已失效")
+                    .build();
+        }
+
         PcUserInfo pcUserInfo;
         //在厂商用户表中查找
         LambdaQueryWrapper<VendorUserPO> wrapperVendor= Wrappers.lambdaQuery();
@@ -81,7 +90,7 @@ public class LoginServiceImpl implements LoginService {
             if(platformAdmin==null){
                 //平台管理员表中也找不到，返回错误
                 return HttpResponseVO.<AccessTokenVO>builder()
-                        .code(HttpStatus.UNAUTHORIZED.value())
+                        .code(HttpStatusConstants.ERROR)
                         .msg("用户名或密码错误")
                         .build();
             }else{
@@ -97,7 +106,7 @@ public class LoginServiceImpl implements LoginService {
 
         return HttpResponseVO.<AccessTokenVO>builder()
                 .data(new AccessTokenVO(token))
-                .code(HttpStatus.OK.value())
+                .code(HttpStatusConstants.SUCCESS)
                 .msg("登录成功")
                 .build();
     }
@@ -113,7 +122,7 @@ public class LoginServiceImpl implements LoginService {
         //判断验证码是否正确
         if(smsCode==null||!smsCode.equals(loginBySmsCodeDTO.getCode())){
             return HttpResponseVO.<AccessTokenVO>builder()
-                    .code(HttpStatus.UNAUTHORIZED.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("验证码错误或验证码已失效")
                     .build();
         }
@@ -133,7 +142,7 @@ public class LoginServiceImpl implements LoginService {
             if(platformAdmin==null){
                 //平台管理员表中也找不到，返回错误
                 return HttpResponseVO.<AccessTokenVO>builder()
-                        .code(HttpStatus.UNAUTHORIZED.value())
+                        .code(HttpStatusConstants.ERROR)
                         .msg("用户不存在")
                         .build();
             }else{
@@ -149,7 +158,7 @@ public class LoginServiceImpl implements LoginService {
 
         return HttpResponseVO.<AccessTokenVO>builder()
                 .data(new AccessTokenVO(token))
-                .code(HttpStatus.OK.value())
+                .code(HttpStatusConstants.SUCCESS)
                 .msg("登录成功")
                 .build();
     }
@@ -194,7 +203,7 @@ public class LoginServiceImpl implements LoginService {
         if((Constants.SMS_CODE_EXPIRE_TIME-redisTemplate.getExpire(key))<Constants.SMS_CODE_SPAN){
             //如果有，且时间间隔小于两次发送的间隔，拒绝发送
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.TOO_MANY_REQUESTS.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("对同一手机号发送短信验证码间隔不得少于1分钟")
                     .build();
         }
@@ -233,7 +242,7 @@ public class LoginServiceImpl implements LoginService {
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 logger.error("发送短信验证码失败，响应码：{}，手机号：{}", responseCode, sendSmsCodeDTO.getPhone());
                 return HttpResponseVO.<String>builder()
-                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                        .code(HttpStatusConstants.ERROR)
                         .msg("验证码发送失败，请稍后重试")
                         .build();
             }
@@ -252,14 +261,14 @@ public class LoginServiceImpl implements LoginService {
 
             logger.info("发送短信验证码成功，手机号：{}，响应内容：{}", sendSmsCodeDTO.getPhone(), responseStr);
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.OK.value())
+                    .code(HttpStatusConstants.SUCCESS)
                     .msg("验证码发送成功，请注意查收")
                     .build();
 
         } catch (IOException e) {
             logger.error("发送短信验证码IO异常，手机号：{}", sendSmsCodeDTO.getPhone(), e);
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("验证码发送失败，网络异常")
                     .build();
         } finally {
@@ -279,13 +288,13 @@ public class LoginServiceImpl implements LoginService {
 
         // 生成验证码图片和对应的文本
         ShearCaptcha captcha = CaptchaUtil.createShearCaptcha(150, 50, 4, 4);
-        String code = captcha.getCode(); // 获取文本，例如 "A7b9"
+        //获取验证码文本
+        String code = captcha.getCode();
 
-        //TODO:将图片转为 Base64
-        String base64Image = captcha.getImageBase64();
+        String base64Image = "data:image/png;base64,"+captcha.getImageBase64();
 
         //存入redis
-        redisTemplate.opsForValue().set(captchaId, code, 2, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(Constants.CAPTCHA_ID_PREFIX+captchaId, code, Constants.CAPTCHA_EXPIRE_TIME, TimeUnit.SECONDS);
 
         CaptchaVO captchaVO=new CaptchaVO();
         captchaVO.setCaptchaId(captchaId);
@@ -293,7 +302,7 @@ public class LoginServiceImpl implements LoginService {
 
         return HttpResponseVO.<CaptchaVO>builder()
                 .data(captchaVO)
-                .code(HttpStatus.OK.value())
+                .code(HttpStatusConstants.SUCCESS)
                 .msg("图形验证码获取成功")
                 .build();
     }
@@ -312,7 +321,7 @@ public class LoginServiceImpl implements LoginService {
         if(smsCode==null||!smsCode.equals(updatePasswordDTO.getCode())){
             //不正确，返回错误
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.UNAUTHORIZED.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("验证码错误或验证码已失效")
                     .build();
         }
@@ -338,13 +347,13 @@ public class LoginServiceImpl implements LoginService {
         if(smsCode==null||!smsCode.equals(confirmOldPhoneDTO.getCode())){
             //不正确，返回401
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.UNAUTHORIZED.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("验证码错误或验证码已失效")
                     .build();
         }
 
         return HttpResponseVO.<String>builder()
-                .code(HttpStatus.OK.value())
+                .code(HttpStatusConstants.SUCCESS)
                 .msg("验证码正确")
                 .build();
     }
@@ -359,7 +368,7 @@ public class LoginServiceImpl implements LoginService {
         countIsExistDTO.setPhone(updatePhoneDTO.getPhone());
         if(commonService.isExistAdmin(countIsExistDTO)|| commonService.isExistVendorUser(countIsExistDTO)){
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.CONFLICT.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("该手机号已绑定其他账号")
                     .build();
         }
@@ -374,7 +383,7 @@ public class LoginServiceImpl implements LoginService {
             //不正确，返回401
             return HttpResponseVO.<String>builder()
                     .data("old")
-                    .code(HttpStatus.UNAUTHORIZED.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("操作时间过长，请重新操作")
                     .build();
         }
@@ -385,7 +394,7 @@ public class LoginServiceImpl implements LoginService {
             //不正确，返回401
             return HttpResponseVO.<String>builder()
                     .data("new")
-                    .code(HttpStatus.UNAUTHORIZED.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("验证码错误或验证码已失效")
                     .build();
         }
@@ -446,12 +455,12 @@ public class LoginServiceImpl implements LoginService {
 
         if (code>0) {
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.OK.value())
+                    .code(HttpStatusConstants.SUCCESS)
                     .msg("修改成功")
                     .build();
         }else{
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatus.NOT_FOUND.value())
+                    .code(HttpStatusConstants.ERROR)
                     .msg("修改失败，用户不存在或数据库发生变化")
                     .build();
         }

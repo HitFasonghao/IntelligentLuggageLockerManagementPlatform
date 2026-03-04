@@ -24,4 +24,10 @@ public interface Constants {
     int SMS_CODE_EXPIRE_TIME=300;
     //短信验证码相邻两次发送间隔
     int SMS_CODE_SPAN=60;
+    //图形验证码id在Redsi中前缀
+    String CAPTCHA_ID_PREFIX="captcha:uuid:";
+    //图形验证码有效期
+    int CAPTCHA_EXPIRE_TIME=120;
+
+
 }

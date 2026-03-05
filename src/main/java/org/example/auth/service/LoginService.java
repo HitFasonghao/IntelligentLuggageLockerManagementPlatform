@@ -5,6 +5,9 @@ import org.example.auth.dto.*;
 import org.example.auth.vo.AccessTokenVO;
 import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
+import org.example.auth.vo.PcPermissionVO;
+
+import java.util.List;
 
 /**
  * @author fasonghao
@@ -44,6 +47,11 @@ public interface LoginService {
      * 获取图形验证码
      */
     HttpResponseVO<CaptchaVO> getCaptcha();
+
+    /**
+     * 获取权限列表
+     */
+    HttpResponseVO<List<PcPermissionVO>> getPermissions();
 
     /**
      * 用户微信小程序登录

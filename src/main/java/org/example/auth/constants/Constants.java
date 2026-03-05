@@ -28,6 +28,7 @@ public interface Constants {
     String CAPTCHA_ID_PREFIX="captcha:uuid:";
     //图形验证码有效期
     int CAPTCHA_EXPIRE_TIME=120;
-
+    //角色权限列表在Resis中前缀
+    String ROLE_PERMISSION_PREFIX="role:permission:";
 
 }

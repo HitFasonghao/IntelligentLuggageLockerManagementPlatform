@@ -6,9 +6,12 @@ import cn.hutool.core.lang.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.fasterxml.jackson.databind.JavaType;
+import org.apache.ibatis.javassist.bytecode.LineNumberAttribute;
 import org.example.auth.common.PasswordAndPhone;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
+import org.example.auth.constants.CodecConstants;
 import org.example.auth.constants.Constants;
 import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.dto.*;
@@ -25,6 +28,7 @@ import org.example.auth.vo.AccessTokenVO;
 import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
 
+import org.example.auth.vo.PcPermissionVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +39,7 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -464,5 +469,32 @@ public class LoginServiceImpl implements LoginService {
                     .msg("修改失败，用户不存在或数据库发生变化")
                     .build();
         }
+    }
+
+    /**
+     * 获取权限列表
+     */
+    @Override
+    public HttpResponseVO<List<PcPermissionVO>> getPermissions() {
+        //从线程中获取用户上下文信息
+        //PcUserInfo userInfo = UserContext.get();
+        //超级管理员
+        //普通管理员
+        //没有绑定厂商的厂商用户
+        //厂商的普通用户
+        //厂商的超级用户
+        String value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"SUPER_ADMIN");
+
+        // 构建List<PcPermissionVO>对应的JavaType
+        JavaType javaType = CodecConstants.OBJECT_MAPPER.getTypeFactory()
+                .constructCollectionType(List.class, PcPermissionVO.class);
+        // 转换JSON为List<PcPermissionVO>
+        List<PcPermissionVO> permissionVOList = JsonUtil.toObject(value, javaType);
+        // 构建返回结果（补充默认的code和msg，保证返回结构完整）
+        return HttpResponseVO.<List<PcPermissionVO>>builder()
+                .data(permissionVOList == null ? List.of() : permissionVOList)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取权限列表成功")
+                .build();
     }
 }

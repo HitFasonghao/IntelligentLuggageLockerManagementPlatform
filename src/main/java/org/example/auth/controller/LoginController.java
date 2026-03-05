@@ -7,8 +7,11 @@ import org.example.auth.service.impl.LoginServiceImpl;
 import org.example.auth.vo.AccessTokenVO;
 import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
+import org.example.auth.vo.PcPermissionVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 登录模块
@@ -74,6 +77,14 @@ public class LoginController {
     @PutMapping("/updatePhone")
     public HttpResponseVO<String> updatePhone(@RequestBody @Valid UpdatePhoneDTO updatePhoneDTO){
         return loginService.updatePhone(updatePhoneDTO);
+    }
+
+    /**
+     * 获取权限列表
+     */
+    @GetMapping("/getPermissions")
+    public HttpResponseVO<List<PcPermissionVO>> getPermissions(){
+        return loginService.getPermissions();
     }
 
     /**

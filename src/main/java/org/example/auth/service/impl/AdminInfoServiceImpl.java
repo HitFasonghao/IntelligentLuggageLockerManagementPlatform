@@ -1,6 +1,7 @@
 package org.example.auth.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import lombok.extern.slf4j.Slf4j;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 /**
  * @author fasonghao
  */
+@Slf4j
 @Service
 public class AdminInfoServiceImpl implements AdminInfoService {
 
@@ -39,6 +41,7 @@ public class AdminInfoServiceImpl implements AdminInfoService {
         //从线程中获取用户上下文信息
         PcUserInfo userInfo = UserContext.get();
         //查询厂商用户信息
+        log.info(String.valueOf(userInfo));
         PlatformAdminPO platformAdmin=platformAdminMapper.selectById(userInfo.getUserId());
         //对象映射
         AdminInfoVO adminInfoVO=mapStructMapper.adminToInfoVO(platformAdmin);

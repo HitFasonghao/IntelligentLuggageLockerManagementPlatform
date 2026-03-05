@@ -16,6 +16,7 @@ import org.example.auth.constants.Constants;
 import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.dto.*;
 import org.example.auth.enums.PcUserIdentityEnum;
+import org.example.auth.enums.VendorUserStatusEnum;
 import org.example.auth.mapper.PlatformAdminMapper;
 import org.example.auth.mapper.VendorUserMapper;
 import org.example.auth.po.PlatformAdminPO;
@@ -23,6 +24,7 @@ import org.example.auth.po.VendorUserPO;
 import org.example.auth.service.CommonService;
 import org.example.auth.service.LoginService;
 import org.example.auth.util.JsonUtil;
+import org.example.auth.util.MethodUtil;
 import org.example.auth.util.TokenUtil;
 import org.example.auth.vo.AccessTokenVO;
 import org.example.auth.vo.CaptchaVO;
@@ -145,11 +147,13 @@ public class LoginServiceImpl implements LoginService {
             PlatformAdminPO platformAdmin=platformAdminMapper.selectOne(wrapperAdmin);
 
             if(platformAdmin==null){
-                //平台管理员表中也找不到，返回错误
-                return HttpResponseVO.<AccessTokenVO>builder()
-                        .code(HttpStatusConstants.ERROR)
-                        .msg("用户不存在")
-                        .build();
+                //平台管理员表中也找不到，自动创建厂商用户
+                VendorUserPO newVendorUser= new VendorUserPO();
+                newVendorUser.setUsername(Constants.TEMP_USERNAME_PREFIX+ MethodUtil.generateUsername(22));
+                newVendorUser.setPhone(loginBySmsCodeDTO.getPhone());
+                newVendorUser.setStatus(VendorUserStatusEnum.ACTIVE);
+                vendorUserMapper.insert(newVendorUser);
+                pcUserInfo=buildVendorInfo(newVendorUser);
             }else{
                 pcUserInfo=buildAdminInfo(platformAdmin);
             }

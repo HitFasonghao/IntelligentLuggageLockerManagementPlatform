@@ -30,5 +30,6 @@ public interface Constants {
     int CAPTCHA_EXPIRE_TIME=120;
     //角色权限列表在Resis中前缀
     String ROLE_PERMISSION_PREFIX="role:permission:";
-
+    //临时用户名前缀
+    String TEMP_USERNAME_PREFIX="TempName";
 }

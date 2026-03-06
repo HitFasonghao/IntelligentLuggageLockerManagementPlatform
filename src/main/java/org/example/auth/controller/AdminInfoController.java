@@ -22,7 +22,7 @@ public class AdminInfoController {
     /**
      * 查询账号信息
      */
-    @GetMapping("/queryVendorUserInfo")
+    @GetMapping("/queryUserInfo")
     public HttpResponseVO<AdminInfoVO> queryAdminInfo(){
         return adminInfoService.queryAdminInfo();
     }

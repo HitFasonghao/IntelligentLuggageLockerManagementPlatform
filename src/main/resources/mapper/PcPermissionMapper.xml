@@ -17,9 +17,9 @@
         <result column="keep_alive" property="keepAlive"/>
         <result column="method" property="method"/>
         <result column="description" property="description"/>
-        <result column="show_status" property="show"/>
-        <result column="enable_status" property="enable"/>
-        <result column="sort" property="order"/>
+        <result column="show_status" property="showStatus"/>
+        <result column="enable_status" property="enableStatus"/>
+        <result column="sort" property="sort"/>
         <result column="created_time" property="createdTime"/>
         <result column="updated_time" property="updatedTime"/>
     </resultMap>

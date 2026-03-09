@@ -51,8 +51,8 @@ public interface MapStructMapper {
     @Mapping(source = "keepAlive", target = "keepAlive")
     @Mapping(source = "method", target = "method")
     @Mapping(source = "description", target = "description")
-    @Mapping(source = "show", target = "show")
-    @Mapping(source = "enable", target = "enable")
-    @Mapping(source = "order", target = "order")
+    @Mapping(source = "showStatus", target = "show")
+    @Mapping(source = "enableStatus", target = "enable")
+    @Mapping(source = "sort", target = "order")
     PcPermissionVO pcPermissionPoToVo(PcPermissionPO pcPermission);
 }

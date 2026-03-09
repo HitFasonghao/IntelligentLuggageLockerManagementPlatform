@@ -58,13 +58,15 @@ public class AdminInfoServiceImpl implements AdminInfoService {
     @Override
     public HttpResponseVO<String> updateAdminInfo(UpdateAdminDTO updateVendorUserDTO) {
         //判断用户名是否存在
-        CountIsExistDTO countIsExistDTO=new CountIsExistDTO();
-        countIsExistDTO.setUsername(updateVendorUserDTO.getUsername());
-        if(commonService.isExistAdmin(countIsExistDTO)||commonService.isExistVendorUser(countIsExistDTO)){
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("用户名重复")
-                    .build();
+        if(updateVendorUserDTO.getUsername()!=null){
+            CountIsExistDTO countIsExistDTO=new CountIsExistDTO();
+            countIsExistDTO.setUsername(updateVendorUserDTO.getUsername());
+            if(commonService.isExistAdmin(countIsExistDTO)||commonService.isExistVendorUser(countIsExistDTO)){
+                return HttpResponseVO.<String>builder()
+                        .code(HttpStatusConstants.ERROR)
+                        .msg("用户名重复")
+                        .build();
+            }
         }
 
         PcUserInfo userInfo = UserContext.get();

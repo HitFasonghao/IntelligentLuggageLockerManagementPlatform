@@ -97,19 +97,19 @@ public class PcPermissionPO {
      * 是否显示
      */
     @TableField("show_status")
-    private Boolean show;
+    private Boolean showStatus;
 
     /**
      * 是否启用
      */
     @TableField("enable_status")
-    private Boolean enable;
+    private Boolean enableStatus;
 
     /**
      * 排序号
      */
     @TableField("sort")
-    private Integer order;
+    private Integer sort;
 
     /**
      * 创建时间

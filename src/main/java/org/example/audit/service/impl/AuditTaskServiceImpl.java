@@ -1,0 +1,202 @@
+package org.example.audit.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.example.audit.dto.AssignAuditTaskDTO;
+import org.example.audit.dto.UpdateAuditTaskDTO;
+import org.example.audit.enums.AuditTaskStatusEnum;
+import org.example.audit.mapper.*;
+import org.example.audit.po.*;
+import org.example.audit.service.AuditTaskService;
+import org.example.audit.vo.AuditTaskVO;
+import org.example.auth.common.PcUserInfo;
+import org.example.auth.common.UserContext;
+import org.example.auth.constants.HttpStatusConstants;
+import org.example.auth.vo.HttpResponseVO;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * 审核任务服务实现
+ * @author fasonghao
+ */
+@Service
+public class AuditTaskServiceImpl implements AuditTaskService {
+
+    @Autowired
+    private AuditTaskMapper auditTaskMapper;
+
+    @Autowired
+    private AuditInstanceMapper auditInstanceMapper;
+
+    @Autowired
+    private AuditNodeMapper auditNodeMapper;
+
+    @Autowired
+    private VendorMapper vendorMapper;
+
+    @Autowired
+    private AuditMapStructMapper mapStructMapper;
+
+    /**
+     * 获取当前管理员的任务列表
+     */
+    @Override
+    public HttpResponseVO<List<AuditTaskVO>> getMyTasks() {
+        PcUserInfo userInfo = UserContext.get();
+
+        LambdaQueryWrapper<AuditTaskPO> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(AuditTaskPO::getAdminId, userInfo.getUserId());
+        wrapper.orderByAsc(AuditTaskPO::getStatus);
+        wrapper.orderByDesc(AuditTaskPO::getPriority);
+        wrapper.orderByAsc(AuditTaskPO::getDueDate);
+        List<AuditTaskPO> tasks = auditTaskMapper.selectList(wrapper);
+
+        List<AuditTaskVO> voList = tasks.stream()
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+
+        return HttpResponseVO.<List<AuditTaskVO>>builder()
+                .data(voList)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取任务列表成功")
+                .build();
+    }
+
+    /**
+     * 获取指定厂商的任务列表
+     */
+    @Override
+    public HttpResponseVO<List<AuditTaskVO>> getTasksByVendor(Integer vendorId) {
+        // 先查该厂商关联的审核实例
+        LambdaQueryWrapper<AuditInstancePO> instanceWrapper = Wrappers.lambdaQuery();
+        instanceWrapper.eq(AuditInstancePO::getVendorId, vendorId);
+        List<AuditInstancePO> instances = auditInstanceMapper.selectList(instanceWrapper);
+
+        if (instances.isEmpty()) {
+            return HttpResponseVO.<List<AuditTaskVO>>builder()
+                    .data(List.of())
+                    .code(HttpStatusConstants.SUCCESS)
+                    .msg("暂无任务")
+                    .build();
+        }
+
+        List<Integer> instanceIds = instances.stream()
+                .map(AuditInstancePO::getAuditInstanceId)
+                .collect(Collectors.toList());
+
+        LambdaQueryWrapper<AuditTaskPO> wrapper = Wrappers.lambdaQuery();
+        wrapper.in(AuditTaskPO::getAuditInstanceId, instanceIds);
+        wrapper.orderByAsc(AuditTaskPO::getDueDate);
+        List<AuditTaskPO> tasks = auditTaskMapper.selectList(wrapper);
+
+        List<AuditTaskVO> voList = tasks.stream()
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+
+        return HttpResponseVO.<List<AuditTaskVO>>builder()
+                .data(voList)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取任务列表成功")
+                .build();
+    }
+
+    /**
+     * 分配审核任务
+     */
+    @Override
+    public HttpResponseVO<String> assignTask(AssignAuditTaskDTO dto) {
+        AuditTaskPO task = new AuditTaskPO();
+        task.setAuditInstanceId(dto.getAuditInstanceId());
+        task.setAuditNodeId(dto.getAuditNodeId());
+        task.setAdminId(dto.getAdminId());
+        task.setStatus(AuditTaskStatusEnum.PENDING);
+        task.setPriority(dto.getPriority() != null ? dto.getPriority() : org.example.audit.enums.AuditTaskPriorityEnum.MEDIUM);
+        task.setDueDate(dto.getDueDate());
+
+        int result = auditTaskMapper.insert(task);
+        if (result > 0) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.SUCCESS)
+                    .msg("任务分配成功")
+                    .build();
+        }
+        return HttpResponseVO.<String>builder()
+                .code(HttpStatusConstants.ERROR)
+                .msg("任务分配失败")
+                .build();
+    }
+
+    /**
+     * 更新任务状态/备注
+     */
+    @Override
+    public HttpResponseVO<String> updateTask(Integer taskId, UpdateAuditTaskDTO dto) {
+        AuditTaskPO existing = auditTaskMapper.selectById(taskId);
+        if (existing == null) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("任务不存在")
+                    .build();
+        }
+
+        LambdaUpdateWrapper<AuditTaskPO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(AuditTaskPO::getAuditTaskId, taskId);
+
+        if (dto.getStatus() != null) {
+            wrapper.set(AuditTaskPO::getStatus, dto.getStatus());
+            // 完成时自动记录完成时间
+            if (dto.getStatus() == AuditTaskStatusEnum.COMPLETED) {
+                wrapper.set(AuditTaskPO::getCompletedTime, LocalDateTime.now());
+            }
+        }
+        if (dto.getPriority() != null) {
+            wrapper.set(AuditTaskPO::getPriority, dto.getPriority());
+        }
+        if (dto.getNotes() != null) {
+            wrapper.set(AuditTaskPO::getNotes, dto.getNotes());
+        }
+
+        int result = auditTaskMapper.update(null, wrapper);
+        if (result > 0) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.SUCCESS)
+                    .msg("任务更新成功")
+                    .build();
+        }
+        return HttpResponseVO.<String>builder()
+                .code(HttpStatusConstants.ERROR)
+                .msg("任务更新失败")
+                .build();
+    }
+
+    /**
+     * PO转VO，补充关联信息
+     */
+    private AuditTaskVO convertToVO(AuditTaskPO po) {
+        AuditTaskVO vo = mapStructMapper.auditTaskPoToVo(po);
+
+        // 补充节点名称
+        AuditNodePO node = auditNodeMapper.selectById(po.getAuditNodeId());
+        if (node != null) {
+            vo.setNodeName(node.getName());
+        }
+
+        // 补充厂商信息
+        AuditInstancePO instance = auditInstanceMapper.selectById(po.getAuditInstanceId());
+        if (instance != null) {
+            vo.setVendorId(instance.getVendorId());
+            VendorPO vendor = vendorMapper.selectById(instance.getVendorId());
+            if (vendor != null) {
+                vo.setCompanyName(vendor.getCompanyName());
+            }
+        }
+
+        return vo;
+    }
+}

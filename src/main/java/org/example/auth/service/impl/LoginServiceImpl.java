@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.JavaType;
 import org.apache.ibatis.javassist.bytecode.LineNumberAttribute;
+import org.example.audit.mapper.VendorUserRelationMapper;
+import org.example.audit.po.VendorUserRelationPO;
 import org.example.auth.common.PasswordAndPhone;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
@@ -64,6 +66,9 @@ public class LoginServiceImpl implements LoginService {
 
     @Autowired
     private CommonService commonService;
+
+    @Autowired
+    private VendorUserRelationMapper vendorUserRelationMapper;
 
     /**
      * 账密登录
@@ -481,13 +486,41 @@ public class LoginServiceImpl implements LoginService {
     @Override
     public HttpResponseVO<List<PcPermissionVO>> getPermissions() {
         //从线程中获取用户上下文信息
-        //PcUserInfo userInfo = UserContext.get();
-        //超级管理员
-        //普通管理员
-        //没有绑定厂商的厂商用户
-        //厂商的普通用户
-        //厂商的超级用户
-        String value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"SUPER_ADMIN");
+        PcUserInfo userInfo = UserContext.get();
+
+        String value;
+        if(userInfo.getRole().getCode()==1){
+            //超级管理员
+            value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"SUPER_ADMIN");
+        }else if(userInfo.getRole().getCode()==2){
+            //普通管理员
+            value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"REGULAR_ADMIN");
+        }else{
+            LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
+            wrapper.eq(VendorUserRelationPO::getVendorUserId, userInfo.getUserId());
+            List<VendorUserRelationPO> relations = vendorUserRelationMapper.selectList(wrapper);
+
+            if(relations==null|| relations.isEmpty()){
+                //没有绑定厂商的厂商用户
+                value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"VENDOR_USER");
+            }else {
+                VendorUserRelationPO vendor=relations.get(0);
+                if(userInfo.getVendorId()!=null){
+                    for(VendorUserRelationPO vendorUserRelation : relations){
+                        if(vendorUserRelation.getVendorId().equals(userInfo.getVendorId())){
+                            vendor= vendorUserRelation;
+                        }
+                    }
+                }
+                if(vendor.getIsMain()){
+                    //厂商的超级用户
+                    value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"MAIN_VENDOR_USER");
+                }else{
+                    //厂商的普通用户
+                    value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"REGULAR_VENDOR_USER");
+                }
+            }
+        }
 
         // 构建List<PcPermissionVO>对应的JavaType
         JavaType javaType = CodecConstants.OBJECT_MAPPER.getTypeFactory()

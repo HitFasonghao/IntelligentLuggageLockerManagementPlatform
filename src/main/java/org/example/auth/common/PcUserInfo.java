@@ -21,4 +21,7 @@ public class PcUserInfo {
 
     //厂商用户关联厂商
     private List<Integer> vendorIds;
+
+    //当前厂商
+    private Integer vendorId;
 }

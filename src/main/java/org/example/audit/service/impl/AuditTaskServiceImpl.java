@@ -43,6 +43,9 @@ public class AuditTaskServiceImpl implements AuditTaskService {
     @Autowired
     private AuditMapStructMapper mapStructMapper;
 
+    @Autowired
+    private VendorAuditRecordMapper vendorAuditRecordMapper;
+
     /**
      * 获取当前管理员的任务列表
      */
@@ -52,6 +55,7 @@ public class AuditTaskServiceImpl implements AuditTaskService {
 
         LambdaQueryWrapper<AuditTaskPO> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(AuditTaskPO::getAdminId, userInfo.getUserId());
+        wrapper.ne(AuditTaskPO::getStatus, AuditTaskStatusEnum.COMPLETED);
         wrapper.orderByAsc(AuditTaskPO::getStatus);
         wrapper.orderByDesc(AuditTaskPO::getPriority);
         wrapper.orderByAsc(AuditTaskPO::getDueDate);
@@ -176,24 +180,49 @@ public class AuditTaskServiceImpl implements AuditTaskService {
     }
 
     /**
+     * 获取单个任务详情
+     */
+    @Override
+    public HttpResponseVO<AuditTaskVO> getTaskById(Integer taskId) {
+        AuditTaskPO task = auditTaskMapper.selectById(taskId);
+        if (task == null) {
+            return HttpResponseVO.<AuditTaskVO>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("任务不存在")
+                    .build();
+        }
+        return HttpResponseVO.<AuditTaskVO>builder()
+                .data(convertToVO(task))
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取任务详情成功")
+                .build();
+    }
+
+    /**
      * PO转VO，补充关联信息
      */
     private AuditTaskVO convertToVO(AuditTaskPO po) {
         AuditTaskVO vo = mapStructMapper.auditTaskPoToVo(po);
 
-        // 补充节点名称
+        // 补充节点名称和类型
         AuditNodePO node = auditNodeMapper.selectById(po.getAuditNodeId());
         if (node != null) {
             vo.setNodeName(node.getName());
+            vo.setNodeType(node.getType());
         }
 
-        // 补充厂商信息
+        // 补充厂商信息和轮次
         AuditInstancePO instance = auditInstanceMapper.selectById(po.getAuditInstanceId());
         if (instance != null) {
             vo.setVendorId(instance.getVendorId());
             VendorPO vendor = vendorMapper.selectById(instance.getVendorId());
             if (vendor != null) {
                 vo.setCompanyName(vendor.getCompanyName());
+            }
+            // 补充轮次
+            VendorAuditRecordPO record = vendorAuditRecordMapper.selectById(instance.getAuditRecordId());
+            if (record != null) {
+                vo.setRound(record.getRound());
             }
         }
 

@@ -16,7 +16,5 @@ public interface AuditMapStructMapper {
 
     VendorAuditRecordVO auditRecordPoToVo(VendorAuditRecordPO po);
 
-    AuditNodeVO auditNodePoToVo(AuditNodePO po);
-
     AuditTaskVO auditTaskPoToVo(AuditTaskPO po);
 }

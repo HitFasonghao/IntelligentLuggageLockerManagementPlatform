@@ -45,4 +45,7 @@ public class AuditTaskPO {
 
     @TableField("notes")
     private String notes;
+
+    @TableField("result")
+    private String result;
 }

@@ -2,14 +2,13 @@ package org.example.audit.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import org.example.audit.enums.AuditNodeTypeEnum;
-import org.example.audit.enums.AuditResultEnum;
-import org.example.audit.enums.AuditTypeEnum;
 import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.dto.SubmitVendorDTO;
 import org.example.audit.mapper.*;
 import org.example.audit.po.*;
 import org.example.audit.service.VendorService;
+import org.example.audit.statemachine.AuditEvent;
+import org.example.audit.statemachine.AuditStateMachine;
 import org.example.audit.vo.*;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
@@ -20,13 +19,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * 厂商服务实现（厂商用户端）
+ * <p>提交/重新提交等审核流程操作统一委托给 {@link AuditStateMachine} 处理
+ *
  * @author fasonghao
  */
 @Service
@@ -49,6 +49,9 @@ public class VendorServiceImpl implements VendorService {
 
     @Autowired
     private AuditMapStructMapper mapStructMapper;
+
+    @Autowired
+    private AuditStateMachine stateMachine;
 
     /**
      * 保存草稿
@@ -93,7 +96,7 @@ public class VendorServiceImpl implements VendorService {
     }
 
     /**
-     * 提交入驻申请
+     * 提交入驻申请（委托状态机处理流程流转）
      */
     @Override
     @Transactional
@@ -113,18 +116,21 @@ public class VendorServiceImpl implements VendorService {
                 return HttpResponseVO.<Integer>builder().code(HttpStatusConstants.ERROR).msg("无权操作该厂商").build();
             }
             copyDtoToVendor(dto, vendor);
-            vendor.setStatus(VendorStatusEnum.PENDING);
-            vendor.setSubmittedTime(LocalDateTime.now());
             vendorMapper.updateById(vendor);
-            createAuditRecord(vendor.getVendorId(), 1, AuditTypeEnum.INITIAL, dto);
-            return HttpResponseVO.<Integer>builder().data(vendor.getVendorId()).code(HttpStatusConstants.SUCCESS).msg("入驻申请提交成功").build();
+
+            // 委托状态机处理流程流转
+            HttpResponseVO<String> result = stateMachine.fire(vendor.getVendorId(), AuditEvent.SUBMIT, dto);
+            return HttpResponseVO.<Integer>builder()
+                    .data(vendor.getVendorId())
+                    .code(result.getCode())
+                    .msg(result.getMsg())
+                    .build();
         }
 
         // 直接新建并提交
         VendorPO vendor = new VendorPO();
         copyDtoToVendor(dto, vendor);
-        vendor.setStatus(VendorStatusEnum.PENDING);
-        vendor.setSubmittedTime(LocalDateTime.now());
+        vendor.setStatus(VendorStatusEnum.DRAFT);
         vendorMapper.insert(vendor);
 
         VendorUserRelationPO relation = new VendorUserRelationPO();
@@ -133,12 +139,17 @@ public class VendorServiceImpl implements VendorService {
         relation.setIsMain(true);
         vendorUserRelationMapper.insert(relation);
 
-        createAuditRecord(vendor.getVendorId(), 1, AuditTypeEnum.INITIAL, dto);
-        return HttpResponseVO.<Integer>builder().data(vendor.getVendorId()).code(HttpStatusConstants.SUCCESS).msg("入驻申请提交成功").build();
+        // 委托状态机处理流程流转
+        HttpResponseVO<String> result = stateMachine.fire(vendor.getVendorId(), AuditEvent.SUBMIT, dto);
+        return HttpResponseVO.<Integer>builder()
+                .data(vendor.getVendorId())
+                .code(result.getCode())
+                .msg(result.getMsg())
+                .build();
     }
 
     /**
-     * 驳回后重新提交
+     * 驳回后重新提交（委托状态机处理流程流转）
      */
     @Override
     @Transactional
@@ -159,14 +170,6 @@ public class VendorServiceImpl implements VendorService {
                     .build();
         }
 
-        if (vendor.getStatus() != VendorStatusEnum.REJECTED) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("当前状态不允许重新提交")
-                    .build();
-        }
-
-        // 验证当前用户是否为该厂商的用户
         if (!isVendorUser(userInfo.getUserId(), vendorId)) {
             return HttpResponseVO.<String>builder()
                     .code(HttpStatusConstants.ERROR)
@@ -176,25 +179,40 @@ public class VendorServiceImpl implements VendorService {
 
         // 更新厂商信息
         copyDtoToVendor(dto, vendor);
-        vendor.setStatus(VendorStatusEnum.PENDING);
-        vendor.setSubmittedTime(LocalDateTime.now());
         vendorMapper.updateById(vendor);
 
-        // 获取当前最大轮次
-        LambdaQueryWrapper<VendorAuditRecordPO> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(VendorAuditRecordPO::getVendorId, vendorId);
-        wrapper.orderByDesc(VendorAuditRecordPO::getRound);
-        wrapper.last("LIMIT 1");
-        VendorAuditRecordPO lastRecord = vendorAuditRecordMapper.selectOne(wrapper);
-        int nextRound = (lastRecord != null) ? lastRecord.getRound() + 1 : 1;
+        // 委托状态机处理流程流转（状态校验由状态机完成）
+        return stateMachine.fire(vendorId, AuditEvent.RESUBMIT, dto);
+    }
 
-        // 创建新一轮审核记录
-        createAuditRecord(vendorId, nextRound, AuditTypeEnum.INITIAL, dto);
+    /**
+     * 删除草稿
+     */
+    @Override
+    @Transactional
+    public HttpResponseVO<String> deleteDraft(Integer vendorId) {
+        PcUserInfo userInfo = UserContext.get();
 
-        return HttpResponseVO.<String>builder()
-                .code(HttpStatusConstants.SUCCESS)
-                .msg("重新提交成功")
-                .build();
+        VendorPO vendor = vendorMapper.selectById(vendorId);
+        if (vendor == null) {
+            return HttpResponseVO.<String>builder().code(HttpStatusConstants.ERROR).msg("厂商不存在").build();
+        }
+        if (vendor.getStatus() != VendorStatusEnum.DRAFT) {
+            return HttpResponseVO.<String>builder().code(HttpStatusConstants.ERROR).msg("仅草稿状态可删除").build();
+        }
+        if (!isVendorUser(userInfo.getUserId(), vendorId)) {
+            return HttpResponseVO.<String>builder().code(HttpStatusConstants.ERROR).msg("无权操作该厂商").build();
+        }
+
+        // 删除关联关系
+        LambdaQueryWrapper<VendorUserRelationPO> relWrapper = Wrappers.lambdaQuery();
+        relWrapper.eq(VendorUserRelationPO::getVendorId, vendorId);
+        vendorUserRelationMapper.delete(relWrapper);
+
+        // 删除厂商记录
+        vendorMapper.deleteById(vendorId);
+
+        return HttpResponseVO.<String>builder().code(HttpStatusConstants.SUCCESS).msg("草稿已删除").build();
     }
 
     /**
@@ -231,7 +249,6 @@ public class VendorServiceImpl implements VendorService {
     @Override
     public HttpResponseVO<AuditProgressVO> getAuditProgress(Integer vendorId) {
         PcUserInfo userInfo = UserContext.get();
-        // 厂商用户需验证关联关系，管理员可直接查看
         if (userInfo.getRole() == PcUserIdentityEnum.VENDOR_USER
                 && !isVendorUser(userInfo.getUserId(), vendorId)) {
             return HttpResponseVO.<AuditProgressVO>builder()
@@ -333,9 +350,6 @@ public class VendorServiceImpl implements VendorService {
 
     // ========== 私有方法 ==========
 
-    /**
-     * 通过用户ID查找关联的厂商（主管理员）
-     */
     private VendorPO getVendorByUserId(Integer userId) {
         LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(VendorUserRelationPO::getVendorUserId, userId);
@@ -347,9 +361,6 @@ public class VendorServiceImpl implements VendorService {
         return vendorMapper.selectById(relation.getVendorId());
     }
 
-    /**
-     * 验证用户是否为指定厂商的用户
-     */
     private boolean isVendorUser(Integer userId, Integer vendorId) {
         LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(VendorUserRelationPO::getVendorUserId, userId);
@@ -357,9 +368,6 @@ public class VendorServiceImpl implements VendorService {
         return vendorUserRelationMapper.selectCount(wrapper) > 0;
     }
 
-    /**
-     * 将DTO数据复制到PO
-     */
     private void copyDtoToVendor(SubmitVendorDTO dto, VendorPO vendor) {
         vendor.setCompanyName(dto.getCompanyName());
         vendor.setShortName(dto.getShortName());
@@ -378,34 +386,5 @@ public class VendorServiceImpl implements VendorService {
         vendor.setApiDocumentUrl(dto.getApiDocumentUrl());
         vendor.setCallbackUrl(dto.getCallbackUrl());
         vendor.setApiVersion(dto.getApiVersion());
-    }
-
-    /**
-     * 创建审核记录并初始化流程实例
-     */
-    private void createAuditRecord(Integer vendorId, int round, AuditTypeEnum type, SubmitVendorDTO snapshot) {
-        VendorAuditRecordPO record = new VendorAuditRecordPO();
-        record.setVendorId(vendorId);
-        record.setRound(round);
-        record.setType(type);
-        record.setData(snapshot);
-        record.setAdminId(0);
-        record.setAuditResult(AuditResultEnum.PENDING);
-        vendorAuditRecordMapper.insert(record);
-
-        // 获取所有启用的审核节点，按order排序
-        LambdaQueryWrapper<AuditNodePO> nodeWrapper = Wrappers.lambdaQuery();
-        nodeWrapper.eq(AuditNodePO::getIsActive, true);
-        nodeWrapper.orderByAsc(AuditNodePO::getOrder);
-        List<AuditNodePO> nodes = auditNodeMapper.selectList(nodeWrapper);
-
-        // 为每个节点创建流程实例
-        for (AuditNodePO node : nodes) {
-            AuditInstancePO instance = new AuditInstancePO();
-            instance.setVendorId(vendorId);
-            instance.setAuditRecordId(record.getAuditRecordId());
-            instance.setAuditNodeId(node.getAuditNodeId());
-            auditInstanceMapper.insert(instance);
-        }
     }
 }

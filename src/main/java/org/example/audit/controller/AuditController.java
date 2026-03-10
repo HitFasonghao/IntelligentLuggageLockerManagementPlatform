@@ -2,10 +2,12 @@ package org.example.audit.controller;
 
 import jakarta.validation.Valid;
 import org.example.audit.dto.FinalApprovalDTO;
+import org.example.audit.dto.PerformanceTestDTO;
 import org.example.audit.dto.QualificationAuditDTO;
 import org.example.audit.dto.TechTestAuditDTO;
 import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.service.AuditService;
+import org.example.audit.vo.AuditTaskVO;
 import org.example.audit.vo.VendorAuditRecordVO;
 import org.example.audit.vo.VendorListVO;
 import org.example.audit.vo.VendorVO;
@@ -52,6 +54,14 @@ public class AuditController {
     }
 
     /**
+     * 获取当前管理员的审核完成记录（审核记录页使用）
+     */
+    @GetMapping("/records")
+    public HttpResponseVO<List<AuditTaskVO>> getMyAuditRecords() {
+        return auditService.getMyAuditRecords();
+    }
+
+    /**
      * 资质审核
      */
     @PostMapping("/vendors/{vendorId}/qualification")
@@ -70,6 +80,15 @@ public class AuditController {
     }
 
     /**
+     * 性能测试审核
+     */
+    @PostMapping("/vendors/{vendorId}/performanceTest")
+    public HttpResponseVO<String> performanceTest(@PathVariable Integer vendorId,
+                                                   @RequestBody @Valid PerformanceTestDTO dto) {
+        return auditService.performanceTest(vendorId, dto);
+    }
+
+    /**
      * 最终审批
      */
     @PostMapping("/vendors/{vendorId}/finalApproval")
@@ -77,4 +96,5 @@ public class AuditController {
                                                 @RequestBody @Valid FinalApprovalDTO dto) {
         return auditService.finalApproval(vendorId, dto);
     }
+
 }

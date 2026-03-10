@@ -26,4 +26,7 @@ public interface AuditTaskService {
 
     /** 更新任务状态/备注 */
     HttpResponseVO<String> updateTask(Integer taskId, UpdateAuditTaskDTO dto);
+
+    /** 获取单个任务详情 */
+    HttpResponseVO<AuditTaskVO> getTaskById(Integer taskId);
 }

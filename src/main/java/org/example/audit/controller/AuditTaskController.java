@@ -31,6 +31,14 @@ public class AuditTaskController {
     }
 
     /**
+     * 获取单个任务详情
+     */
+    @GetMapping("/{taskId}")
+    public HttpResponseVO<AuditTaskVO> getTaskById(@PathVariable Integer taskId) {
+        return auditTaskService.getTaskById(taskId);
+    }
+
+    /**
      * 获取指定厂商的任务列表
      */
     @GetMapping("/vendor/{vendorId}")

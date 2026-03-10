@@ -15,4 +15,10 @@ public interface FileStorageService {
      * @return 文件URL
      */
     String uploadFile(MultipartFile file, String directory);
+
+    /**
+     * 根据文件URL删除对象存储中的文件
+     * @param fileUrl 文件的完整访问URL
+     */
+    void deleteFile(String fileUrl);
 }

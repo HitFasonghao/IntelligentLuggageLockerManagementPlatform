@@ -50,6 +50,14 @@ public class VendorController {
     }
 
     /**
+     * 删除草稿
+     */
+    @DeleteMapping("/draft/{vendorId}")
+    public HttpResponseVO<String> deleteDraft(@PathVariable Integer vendorId) {
+        return vendorService.deleteDraft(vendorId);
+    }
+
+    /**
      * 驳回后重新提交
      */
     @PostMapping("/{vendorId}/resubmit")
@@ -112,7 +120,8 @@ public class VendorController {
      * 上传营业执照照片
      */
     @PostMapping("/upload/license")
-    public HttpResponseVO<String> uploadLicense(@RequestParam("file") MultipartFile file) {
+    public HttpResponseVO<String> uploadLicense(@RequestParam("file") MultipartFile file,
+                                                @RequestParam(value = "oldUrl", required = false) String oldUrl) {
         if (file.isEmpty()) {
             return HttpResponseVO.<String>builder()
                     .code(HttpStatusConstants.ERROR)
@@ -120,6 +129,10 @@ public class VendorController {
                     .build();
         }
         String url = fileStorageService.uploadFile(file, "license");
+        // 上传成功后删除旧文件
+        if (oldUrl != null && !oldUrl.isBlank()) {
+            fileStorageService.deleteFile(oldUrl);
+        }
         return HttpResponseVO.<String>builder()
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("上传成功")

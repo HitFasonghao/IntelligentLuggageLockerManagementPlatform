@@ -1,33 +1,41 @@
 package org.example.audit.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.example.audit.dto.FinalApprovalDTO;
+import org.example.audit.dto.PerformanceTestDTO;
 import org.example.audit.dto.QualificationAuditDTO;
 import org.example.audit.dto.TechTestAuditDTO;
-import org.example.audit.enums.*;
+import org.example.audit.enums.AuditResultEnum;
+import org.example.audit.enums.AuditTaskStatusEnum;
+import org.example.audit.enums.TestResultEnum;
+import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.mapper.*;
 import org.example.audit.po.*;
 import org.example.audit.service.AuditService;
+import org.example.audit.statemachine.AuditEvent;
+import org.example.audit.statemachine.AuditStateMachine;
+import org.example.audit.vo.AuditTaskVO;
 import org.example.audit.vo.VendorAuditRecordVO;
 import org.example.audit.vo.VendorListVO;
 import org.example.audit.vo.VendorVO;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
+import org.example.auth.enums.PcUserIdentityEnum;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
-import java.util.UUID;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 审核服务实现（平台管理员端）
+ * <p>审核流程相关操作统一委托给 {@link AuditStateMachine} 处理
+ *
  * @author fasonghao
  */
 @Service
@@ -40,25 +48,48 @@ public class AuditServiceImpl implements AuditService {
     private VendorAuditRecordMapper vendorAuditRecordMapper;
 
     @Autowired
+    private AuditMapStructMapper mapStructMapper;
+
+    @Autowired
+    private AuditStateMachine stateMachine;
+
+    @Autowired
+    private AuditTaskMapper auditTaskMapper;
+
+    @Autowired
     private AuditInstanceMapper auditInstanceMapper;
 
     @Autowired
     private AuditNodeMapper auditNodeMapper;
 
-    @Autowired
-    private AuditMapStructMapper mapStructMapper;
-
     /**
      * 获取厂商审核列表
+     * <p>所有管理员只能看到已分配任务的厂商
+     * <p>超级管理员：看到所有已分配（给任意管理员）的厂商
+     * <p>普通管理员：只看到分配给自己的厂商
      */
     @Override
     public HttpResponseVO<List<VendorListVO>> getVendorList(VendorStatusEnum status) {
+        PcUserInfo userInfo = UserContext.get();
+
+        // 查询已分配任务的厂商ID集合（超管看所有已分配的，普管只看自己的）
+        Set<Integer> assignedVendorIds = getAssignedVendorIds(userInfo);
+
+        if (assignedVendorIds.isEmpty()) {
+            return HttpResponseVO.<List<VendorListVO>>builder()
+                    .data(List.of())
+                    .code(HttpStatusConstants.SUCCESS)
+                    .msg("获取厂商列表成功")
+                    .build();
+        }
+
         LambdaQueryWrapper<VendorPO> wrapper = Wrappers.lambdaQuery();
-        // 排除草稿状态
         wrapper.ne(VendorPO::getStatus, VendorStatusEnum.DRAFT);
         if (status != null) {
             wrapper.eq(VendorPO::getStatus, status);
         }
+        wrapper.in(VendorPO::getVendorId, assignedVendorIds);
+
         wrapper.orderByDesc(VendorPO::getSubmittedTime);
         List<VendorPO> vendors = vendorMapper.selectList(wrapper);
 
@@ -87,6 +118,26 @@ public class AuditServiceImpl implements AuditService {
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("获取厂商列表成功")
                 .build();
+    }
+
+    /**
+     * 查询管理员被分配的厂商ID集合
+     */
+    private Set<Integer> getAssignedVendorIds(PcUserInfo userInfo) {
+        // 所有角色都只查分配给自己的任务
+        LambdaQueryWrapper<AuditTaskPO> taskWrapper = Wrappers.lambdaQuery();
+        taskWrapper.eq(AuditTaskPO::getAdminId, userInfo.getUserId());
+        List<AuditTaskPO> tasks = auditTaskMapper.selectList(taskWrapper);
+
+        // 通过任务关联的实例，找到厂商ID
+        Set<Integer> vendorIds = new HashSet<>();
+        for (AuditTaskPO task : tasks) {
+            AuditInstancePO instance = auditInstanceMapper.selectById(task.getAuditInstanceId());
+            if (instance != null) {
+                vendorIds.add(instance.getVendorId());
+            }
+        }
+        return vendorIds;
     }
 
     /**
@@ -130,281 +181,99 @@ public class AuditServiceImpl implements AuditService {
     }
 
     /**
-     * 资质审核
+     * 获取当前管理员的审核完成记录（查询已完成的任务）
      */
     @Override
-    @Transactional
-    public HttpResponseVO<String> qualificationAudit(Integer vendorId, QualificationAuditDTO dto) {
+    public HttpResponseVO<List<AuditTaskVO>> getMyAuditRecords() {
         PcUserInfo userInfo = UserContext.get();
 
-        VendorPO vendor = vendorMapper.selectById(vendorId);
-        if (vendor == null) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("厂商不存在")
-                    .build();
-        }
-        if (vendor.getStatus() != VendorStatusEnum.PENDING) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("当前状态不允许进行资质审核")
-                    .build();
-        }
+        LambdaQueryWrapper<AuditTaskPO> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(AuditTaskPO::getAdminId, userInfo.getUserId());
+        wrapper.eq(AuditTaskPO::getStatus, AuditTaskStatusEnum.COMPLETED);
+        wrapper.orderByDesc(AuditTaskPO::getCompletedTime);
+        List<AuditTaskPO> tasks = auditTaskMapper.selectList(wrapper);
 
-        // 获取最新审核记录
-        VendorAuditRecordPO record = getLatestRecord(vendorId);
-        if (record == null) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("未找到审核记录")
-                    .build();
-        }
+        List<AuditTaskVO> voList = tasks.stream()
+                .map(this::convertTaskToVO)
+                .collect(Collectors.toList());
 
-        // 更新审核记录
-        record.setAdminId(userInfo.getUserId());
-        record.setAuditResult(dto.getAuditResult());
-        record.setAuditNotes(dto.getAuditNotes());
-        vendorAuditRecordMapper.updateById(record);
-
-        // 更新资质审核节点的实例
-        completeNodeInstance(record.getAuditRecordId(), AuditNodeTypeEnum.QUALIFICATION);
-
-        if (dto.getAuditResult() == AuditResultEnum.PASS) {
-            // 通过 → 进入技术测试阶段
-            vendor.setStatus(VendorStatusEnum.TESTING);
-            vendor.setReviewedTime(LocalDateTime.now());
-            vendorMapper.updateById(vendor);
-
-            // 启动下一个节点实例（API测试）
-            startNodeInstance(record.getAuditRecordId(), AuditNodeTypeEnum.API_TEST);
-
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("资质审核通过，已进入技术测试阶段")
-                    .build();
-        } else {
-            // 不通过 → 驳回
-            vendor.setStatus(VendorStatusEnum.REJECTED);
-            vendor.setReviewedTime(LocalDateTime.now());
-            vendorMapper.updateById(vendor);
-
-            record.setCompletedTime(LocalDateTime.now());
-            vendorAuditRecordMapper.updateById(record);
-
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("资质审核未通过，已驳回")
-                    .build();
-        }
-    }
-
-    /**
-     * 技术测试审核
-     */
-    @Override
-    @Transactional
-    public HttpResponseVO<String> techTestAudit(Integer vendorId, TechTestAuditDTO dto) {
-        PcUserInfo userInfo = UserContext.get();
-
-        VendorPO vendor = vendorMapper.selectById(vendorId);
-        if (vendor == null) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("厂商不存在")
-                    .build();
-        }
-        if (vendor.getStatus() != VendorStatusEnum.TESTING) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("当前状态不允许进行技术测试审核")
-                    .build();
-        }
-
-        VendorAuditRecordPO record = getLatestRecord(vendorId);
-        if (record == null) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("未找到审核记录")
-                    .build();
-        }
-
-        // 更新测试相关字段
-        record.setTestResult(dto.getTestResult());
-        record.setTestNotes(dto.getTestNotes());
-        record.setApiValidationResult(dto.getApiValidationResult());
-        record.setPerformanceResult(dto.getPerformanceResult());
-
-        if (dto.getTestResult() == TestResultEnum.TESTING) {
-            // 标记测试进行中
-            record.setTestStartedTime(LocalDateTime.now());
-            vendorAuditRecordMapper.updateById(record);
-
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("已开始技术测试")
-                    .build();
-        }
-
-        record.setTestCompletedTime(LocalDateTime.now());
-        vendorAuditRecordMapper.updateById(record);
-
-        // 完成API测试和性能测试节点
-        completeNodeInstance(record.getAuditRecordId(), AuditNodeTypeEnum.API_TEST);
-        completeNodeInstance(record.getAuditRecordId(), AuditNodeTypeEnum.PERFORMANCE);
-
-        if (dto.getTestResult() == TestResultEnum.PASSED) {
-            // 测试通过，启动人工审核节点（最终审批）
-            startNodeInstance(record.getAuditRecordId(), AuditNodeTypeEnum.MANUAL_REVIEW);
-
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("技术测试通过，等待最终审批")
-                    .build();
-        } else if (dto.getTestResult() == TestResultEnum.FAILED) {
-            // 测试失败 → 驳回
-            vendor.setStatus(VendorStatusEnum.REJECTED);
-            vendorMapper.updateById(vendor);
-
-            record.setCompletedTime(LocalDateTime.now());
-            vendorAuditRecordMapper.updateById(record);
-
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("技术测试未通过，已驳回")
-                    .build();
-        }
-
-        return HttpResponseVO.<String>builder()
+        return HttpResponseVO.<List<AuditTaskVO>>builder()
+                .data(voList)
                 .code(HttpStatusConstants.SUCCESS)
-                .msg("测试状态已更新")
+                .msg("获取审核记录成功")
                 .build();
     }
 
     /**
-     * 最终审批
+     * 任务PO转VO（审核记录页使用）
+     */
+    private AuditTaskVO convertTaskToVO(AuditTaskPO po) {
+        AuditTaskVO vo = mapStructMapper.auditTaskPoToVo(po);
+
+        AuditNodePO node = auditNodeMapper.selectById(po.getAuditNodeId());
+        if (node != null) {
+            vo.setNodeName(node.getName());
+            vo.setNodeType(node.getType());
+        }
+
+        AuditInstancePO instance = auditInstanceMapper.selectById(po.getAuditInstanceId());
+        if (instance != null) {
+            vo.setVendorId(instance.getVendorId());
+            VendorPO vendor = vendorMapper.selectById(instance.getVendorId());
+            if (vendor != null) {
+                vo.setCompanyName(vendor.getCompanyName());
+            }
+            VendorAuditRecordPO record = vendorAuditRecordMapper.selectById(instance.getAuditRecordId());
+            if (record != null) {
+                vo.setRound(record.getRound());
+            }
+        }
+
+        return vo;
+    }
+
+    /**
+     * 资质审核（根据审核结果自动决定事件）
      */
     @Override
-    @Transactional
+    public HttpResponseVO<String> qualificationAudit(Integer vendorId, QualificationAuditDTO dto) {
+        AuditEvent event = (dto.getAuditResult() == AuditResultEnum.PASS)
+                ? AuditEvent.QUALIFICATION_PASS
+                : AuditEvent.QUALIFICATION_FAIL;
+        return stateMachine.fire(vendorId, event, dto);
+    }
+
+    /**
+     * 技术测试审核（根据测试结果自动决定事件）
+     */
+    @Override
+    public HttpResponseVO<String> techTestAudit(Integer vendorId, TechTestAuditDTO dto) {
+        AuditEvent event = (dto.getTestResult() == TestResultEnum.PASSED)
+                ? AuditEvent.TECH_TEST_PASS
+                : AuditEvent.TECH_TEST_FAIL;
+        return stateMachine.fire(vendorId, event, dto);
+    }
+
+    /**
+     * 性能测试审核（根据测试结果自动决定事件）
+     */
+    @Override
+    public HttpResponseVO<String> performanceTest(Integer vendorId, PerformanceTestDTO dto) {
+        AuditEvent event = (dto.getTestResult() == TestResultEnum.PASSED)
+                ? AuditEvent.PERFORMANCE_PASS
+                : AuditEvent.PERFORMANCE_FAIL;
+        return stateMachine.fire(vendorId, event, dto);
+    }
+
+    /**
+     * 最终审批（根据是否批准自动决定事件）
+     */
+    @Override
     public HttpResponseVO<String> finalApproval(Integer vendorId, FinalApprovalDTO dto) {
-        PcUserInfo userInfo = UserContext.get();
-
-        VendorPO vendor = vendorMapper.selectById(vendorId);
-        if (vendor == null) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("厂商不存在")
-                    .build();
-        }
-        if (vendor.getStatus() != VendorStatusEnum.TESTING) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("当前状态不允许进行最终审批")
-                    .build();
-        }
-
-        VendorAuditRecordPO record = getLatestRecord(vendorId);
-        if (record == null) {
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("未找到审核记录")
-                    .build();
-        }
-
-        // 完成人工审核节点
-        completeNodeInstance(record.getAuditRecordId(), AuditNodeTypeEnum.MANUAL_REVIEW);
-
-        if (dto.getApproved()) {
-            // 批准
-            vendor.setStatus(VendorStatusEnum.APPROVED);
-            vendor.setApprovedTime(LocalDateTime.now());
-            vendor.setAdminId(userInfo.getUserId());
-            vendor.setEffectiveFrom(dto.getEffectiveFrom());
-            vendor.setEffectiveTo(dto.getEffectiveTo());
-            // 自动生成厂商编码
-            vendor.setVendorCode(generateVendorCode());
-            vendorMapper.updateById(vendor);
-
-            record.setCompletedTime(LocalDateTime.now());
-            record.setAuditNotes(record.getAuditNotes() != null
-                    ? record.getAuditNotes() + "；最终审批意见：" + dto.getNotes()
-                    : "最终审批意见：" + dto.getNotes());
-            vendorAuditRecordMapper.updateById(record);
-
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("最终审批通过，厂商入驻成功")
-                    .build();
-        } else {
-            // 驳回
-            vendor.setStatus(VendorStatusEnum.REJECTED);
-            vendor.setAdminId(userInfo.getUserId());
-            vendorMapper.updateById(vendor);
-
-            record.setAuditResult(AuditResultEnum.FAIL);
-            record.setCompletedTime(LocalDateTime.now());
-            record.setAuditNotes(record.getAuditNotes() != null
-                    ? record.getAuditNotes() + "；最终审批意见：" + dto.getNotes()
-                    : "最终审批意见：" + dto.getNotes());
-            vendorAuditRecordMapper.updateById(record);
-
-            return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("最终审批未通过，已驳回")
-                    .build();
-        }
+        AuditEvent event = dto.getApproved()
+                ? AuditEvent.FINAL_APPROVE
+                : AuditEvent.FINAL_REJECT;
+        return stateMachine.fire(vendorId, event, dto);
     }
 
-    // ========== 私有方法 ==========
-
-    private VendorAuditRecordPO getLatestRecord(Integer vendorId) {
-        LambdaQueryWrapper<VendorAuditRecordPO> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(VendorAuditRecordPO::getVendorId, vendorId);
-        wrapper.orderByDesc(VendorAuditRecordPO::getRound);
-        wrapper.last("LIMIT 1");
-        return vendorAuditRecordMapper.selectOne(wrapper);
-    }
-
-    /**
-     * 完成指定类型的流程节点实例
-     */
-    private void completeNodeInstance(Integer auditRecordId, AuditNodeTypeEnum nodeType) {
-        // 找到对应节点
-        LambdaQueryWrapper<AuditNodePO> nodeWrapper = Wrappers.lambdaQuery();
-        nodeWrapper.eq(AuditNodePO::getType, nodeType);
-        nodeWrapper.eq(AuditNodePO::getIsActive, true);
-        AuditNodePO node = auditNodeMapper.selectOne(nodeWrapper);
-        if (node == null) return;
-
-        LambdaUpdateWrapper<AuditInstancePO> wrapper = new LambdaUpdateWrapper<>();
-        wrapper.eq(AuditInstancePO::getAuditRecordId, auditRecordId);
-        wrapper.eq(AuditInstancePO::getAuditNodeId, node.getAuditNodeId());
-        wrapper.set(AuditInstancePO::getCompletedTime, LocalDateTime.now());
-        auditInstanceMapper.update(null, wrapper);
-    }
-
-    /**
-     * 启动指定类型的流程节点实例
-     */
-    private void startNodeInstance(Integer auditRecordId, AuditNodeTypeEnum nodeType) {
-        LambdaQueryWrapper<AuditNodePO> nodeWrapper = Wrappers.lambdaQuery();
-        nodeWrapper.eq(AuditNodePO::getType, nodeType);
-        nodeWrapper.eq(AuditNodePO::getIsActive, true);
-        AuditNodePO node = auditNodeMapper.selectOne(nodeWrapper);
-        if (node == null) return;
-
-        LambdaUpdateWrapper<AuditInstancePO> wrapper = new LambdaUpdateWrapper<>();
-        wrapper.eq(AuditInstancePO::getAuditRecordId, auditRecordId);
-        wrapper.eq(AuditInstancePO::getAuditNodeId, node.getAuditNodeId());
-        wrapper.set(AuditInstancePO::getStartedTime, LocalDateTime.now());
-        auditInstanceMapper.update(null, wrapper);
-    }
-
-    /**
-     * 生成厂商编码（V + 年月日 + 4位随机）
-     */
-    private String generateVendorCode() {
-        String datePart = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-        return "V" + datePart + randomPart;
-    }
 }

@@ -57,7 +57,6 @@ CREATE TABLE pc_permission (
                                created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                                updated_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
                                PRIMARY KEY (permission_id),
-                               UNIQUE KEY uk_permission_name (name),
                                UNIQUE KEY uk_permission_code (code),
                                KEY idx_permission_parent_id (parent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='PC端页面权限（菜单按钮）表';
@@ -197,6 +196,7 @@ CREATE TABLE audit_tasks (
                              due_date TIMESTAMP NOT NULL COMMENT '截止时间',
                              completed_time TIMESTAMP NULL DEFAULT NULL COMMENT '完成时间',
                              notes TEXT DEFAULT NULL COMMENT '审核意见',
+                             result VARCHAR(20) NULL DEFAULT NULL COMMENT '审核结果：pass/fail',
                              PRIMARY KEY (audit_task_id),
                              KEY idx_audit_instance_id (audit_instance_id),
                              KEY idx_audit_node_id (audit_node_id),
@@ -204,3 +204,15 @@ CREATE TABLE audit_tasks (
                              CONSTRAINT fk_at_audit_instance_id FOREIGN KEY (audit_instance_id) REFERENCES audit_instances (audit_instance_id) ON DELETE CASCADE,
                              CONSTRAINT fk_at_audit_node_id FOREIGN KEY (audit_node_id) REFERENCES audit_nodes (audit_node_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审核任务分配表';
+
+-- 审核节点初始数据
+INSERT INTO audit_nodes (name, type, `order`, auto_pass, timeout_hours, is_active) VALUES
+('资质审核', 'qualification', 1, FALSE, 48, TRUE),
+('API接口测试', 'api_test', 2, FALSE, 72, TRUE),
+('性能测试', 'performance', 3, FALSE, 72, TRUE),
+('人工审核', 'manual_review', 4, FALSE, 24, TRUE);
+
+-- 审核任务分配权限（仅超级管理员，parent_id 需对应 AuditMgt 的 permission_id）
+-- INSERT INTO pc_permission (name, code, type, parent_id, path, component, show_status, enable_status, sort)
+-- VALUES ('审核任务分配', 'AuditAssignment', 'MENU', <AuditMgt的permission_id>, '/audit/assignments', '/src/views/audit/assignments/index.vue', 1, 1, 0);
+-- INSERT INTO pc_role_permission (role_id, permission_id) VALUES (1, <上面插入的permission_id>);

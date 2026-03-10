@@ -24,6 +24,9 @@ public interface VendorService {
     /** 驳回后重新提交 */
     HttpResponseVO<String> resubmit(Integer vendorId, SubmitVendorDTO dto);
 
+    /** 删除草稿 */
+    HttpResponseVO<String> deleteDraft(Integer vendorId);
+
     /** 获取当前厂商用户关联的所有厂商列表 */
     HttpResponseVO<List<VendorVO>> getMyVendors();
 

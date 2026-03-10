@@ -27,3 +27,10 @@ spring:
           max-idle: 1000
           min-idle: 1000
           max-wait: 10000ms
+
+# MinIO对象存储配置
+minio:
+  endpoint: http://39.102.116.155:9000
+  access-key: admin
+  secret-key: 20050401Fa
+  bucket: locker-platform

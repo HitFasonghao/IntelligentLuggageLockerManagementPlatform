@@ -16,6 +16,8 @@ public class VendorAuditRecordVO {
 
     private Integer auditRecordId;
     private Integer vendorId;
+    /** 厂商名称（列表展示用） */
+    private String companyName;
     private Integer round;
     private AuditTypeEnum type;
     private Object data;

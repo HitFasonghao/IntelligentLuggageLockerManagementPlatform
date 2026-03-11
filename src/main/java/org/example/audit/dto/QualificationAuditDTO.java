@@ -2,7 +2,6 @@ package org.example.audit.dto;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.example.audit.enums.AuditResultEnum;
 
 /**
  * 资质审核 DTO
@@ -11,10 +10,10 @@ import org.example.audit.enums.AuditResultEnum;
 @Data
 public class QualificationAuditDTO {
 
-    /** 审核结果：pass / fail */
+    /** 是否通过 */
     @NotNull(message = "审核结果不能为空")
-    private AuditResultEnum auditResult;
+    private Boolean passed;
 
     /** 审核意见 */
-    private String auditNotes;
+    private String notes;
 }

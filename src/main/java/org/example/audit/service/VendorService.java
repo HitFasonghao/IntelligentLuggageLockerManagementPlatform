@@ -2,6 +2,7 @@ package org.example.audit.service;
 
 import org.example.audit.dto.SubmitVendorDTO;
 import org.example.audit.vo.AuditProgressVO;
+import org.example.audit.vo.VendorListVO;
 import org.example.audit.vo.VendorVO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.stereotype.Service;
@@ -35,4 +36,7 @@ public interface VendorService {
 
     /** 获取审核进度 */
     HttpResponseVO<AuditProgressVO> getAuditProgress(Integer vendorId);
+
+    /** 获取当前厂商用户关联厂商的审核记录列表 */
+    HttpResponseVO<List<VendorListVO>> getMyAuditRecords();
 }

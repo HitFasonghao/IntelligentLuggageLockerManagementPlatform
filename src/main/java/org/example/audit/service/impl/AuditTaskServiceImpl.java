@@ -13,6 +13,8 @@ import org.example.audit.vo.AuditTaskVO;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
+import org.example.auth.mapper.PlatformAdminMapper;
+import org.example.auth.po.PlatformAdminPO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -32,9 +34,6 @@ public class AuditTaskServiceImpl implements AuditTaskService {
     private AuditTaskMapper auditTaskMapper;
 
     @Autowired
-    private AuditInstanceMapper auditInstanceMapper;
-
-    @Autowired
     private AuditNodeMapper auditNodeMapper;
 
     @Autowired
@@ -45,6 +44,9 @@ public class AuditTaskServiceImpl implements AuditTaskService {
 
     @Autowired
     private VendorAuditRecordMapper vendorAuditRecordMapper;
+
+    @Autowired
+    private PlatformAdminMapper platformAdminMapper;
 
     /**
      * 获取当前管理员的任务列表
@@ -77,25 +79,8 @@ public class AuditTaskServiceImpl implements AuditTaskService {
      */
     @Override
     public HttpResponseVO<List<AuditTaskVO>> getTasksByVendor(Integer vendorId) {
-        // 先查该厂商关联的审核实例
-        LambdaQueryWrapper<AuditInstancePO> instanceWrapper = Wrappers.lambdaQuery();
-        instanceWrapper.eq(AuditInstancePO::getVendorId, vendorId);
-        List<AuditInstancePO> instances = auditInstanceMapper.selectList(instanceWrapper);
-
-        if (instances.isEmpty()) {
-            return HttpResponseVO.<List<AuditTaskVO>>builder()
-                    .data(List.of())
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("暂无任务")
-                    .build();
-        }
-
-        List<Integer> instanceIds = instances.stream()
-                .map(AuditInstancePO::getAuditInstanceId)
-                .collect(Collectors.toList());
-
         LambdaQueryWrapper<AuditTaskPO> wrapper = Wrappers.lambdaQuery();
-        wrapper.in(AuditTaskPO::getAuditInstanceId, instanceIds);
+        wrapper.eq(AuditTaskPO::getVendorId, vendorId);
         wrapper.orderByAsc(AuditTaskPO::getDueDate);
         List<AuditTaskPO> tasks = auditTaskMapper.selectList(wrapper);
 
@@ -111,28 +96,26 @@ public class AuditTaskServiceImpl implements AuditTaskService {
     }
 
     /**
-     * 分配审核任务
+     * 分配审核任务（更新已有任务的审核员）
      */
     @Override
     public HttpResponseVO<String> assignTask(AssignAuditTaskDTO dto) {
-        AuditTaskPO task = new AuditTaskPO();
-        task.setAuditInstanceId(dto.getAuditInstanceId());
-        task.setAuditNodeId(dto.getAuditNodeId());
-        task.setAdminId(dto.getAdminId());
-        task.setStatus(AuditTaskStatusEnum.PENDING);
-        task.setPriority(dto.getPriority() != null ? dto.getPriority() : org.example.audit.enums.AuditTaskPriorityEnum.MEDIUM);
-        task.setDueDate(dto.getDueDate());
-
-        int result = auditTaskMapper.insert(task);
-        if (result > 0) {
+        AuditTaskPO task = auditTaskMapper.selectById(dto.getAuditTaskId());
+        if (task == null) {
             return HttpResponseVO.<String>builder()
-                    .code(HttpStatusConstants.SUCCESS)
-                    .msg("任务分配成功")
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("任务不存在")
                     .build();
         }
+
+        task.setAdminId(dto.getAdminId());
+        task.setPriority(dto.getPriority() != null ? dto.getPriority() : org.example.audit.enums.AuditTaskPriorityEnum.MEDIUM);
+        task.setDueDate(dto.getDueDate());
+        auditTaskMapper.updateById(task);
+
         return HttpResponseVO.<String>builder()
-                .code(HttpStatusConstants.ERROR)
-                .msg("任务分配失败")
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("任务分配成功")
                 .build();
     }
 
@@ -211,21 +194,46 @@ public class AuditTaskServiceImpl implements AuditTaskService {
             vo.setNodeType(node.getType());
         }
 
-        // 补充厂商信息和轮次
-        AuditInstancePO instance = auditInstanceMapper.selectById(po.getAuditInstanceId());
-        if (instance != null) {
-            vo.setVendorId(instance.getVendorId());
-            VendorPO vendor = vendorMapper.selectById(instance.getVendorId());
-            if (vendor != null) {
-                vo.setCompanyName(vendor.getCompanyName());
-            }
-            // 补充轮次
-            VendorAuditRecordPO record = vendorAuditRecordMapper.selectById(instance.getAuditRecordId());
-            if (record != null) {
-                vo.setRound(record.getRound());
+        // 补充厂商信息
+        vo.setVendorId(po.getVendorId());
+        VendorPO vendor = vendorMapper.selectById(po.getVendorId());
+        if (vendor != null) {
+            vo.setCompanyName(vendor.getCompanyName());
+        }
+        // 补充轮次
+        VendorAuditRecordPO record = vendorAuditRecordMapper.selectById(po.getAuditRecordId());
+        if (record != null) {
+            vo.setRound(record.getRound());
+        }
+        // 补充审核管理员名称
+        if (po.getAdminId() != null) {
+            PlatformAdminPO admin = platformAdminMapper.selectById(po.getAdminId());
+            if (admin != null) {
+                vo.setAdminName(admin.getRealName() != null ? admin.getRealName() : admin.getUsername());
             }
         }
 
         return vo;
+    }
+
+    /**
+     * 根据审核记录ID获取任务列表
+     */
+    @Override
+    public HttpResponseVO<List<AuditTaskVO>> getTasksByRecord(Integer recordId) {
+        LambdaQueryWrapper<AuditTaskPO> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(AuditTaskPO::getAuditRecordId, recordId);
+        wrapper.orderByAsc(AuditTaskPO::getAuditNodeId);
+        List<AuditTaskPO> tasks = auditTaskMapper.selectList(wrapper);
+
+        List<AuditTaskVO> voList = tasks.stream()
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+
+        return HttpResponseVO.<List<AuditTaskVO>>builder()
+                .data(voList)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取任务列表成功")
+                .build();
     }
 }

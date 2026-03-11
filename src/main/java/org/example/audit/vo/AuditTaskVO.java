@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
 public class AuditTaskVO {
 
     private Integer auditTaskId;
-    private Integer auditInstanceId;
+    private Integer vendorId;
+    private Integer auditRecordId;
     private Integer auditNodeId;
     private String nodeName;
     /** 节点类型，前端据此展示不同的审核表单 */
@@ -26,12 +27,12 @@ public class AuditTaskVO {
     private LocalDateTime dueDate;
     private LocalDateTime completedTime;
     private String notes;
-    /** 审核结果：pass/fail */
-    private String result;
+    /** 是否通过 */
+    private Boolean passed;
+    /** 审核管理员名称 */
+    private String adminName;
     /** 关联的厂商名称，列表展示用 */
     private String companyName;
-    /** 关联的厂商ID */
-    private Integer vendorId;
     /** 审核轮次 */
     private Integer round;
 }

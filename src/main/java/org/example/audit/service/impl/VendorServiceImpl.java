@@ -2,6 +2,7 @@ package org.example.audit.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.example.audit.enums.AuditRecordResultEnum;
 import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.dto.SubmitVendorDTO;
 import org.example.audit.mapper.*;
@@ -14,6 +15,8 @@ import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.enums.PcUserIdentityEnum;
+import org.example.auth.mapper.PlatformAdminMapper;
+import org.example.auth.po.PlatformAdminPO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -42,13 +45,16 @@ public class VendorServiceImpl implements VendorService {
     private VendorAuditRecordMapper vendorAuditRecordMapper;
 
     @Autowired
-    private AuditInstanceMapper auditInstanceMapper;
+    private AuditTaskMapper auditTaskMapper;
 
     @Autowired
     private AuditNodeMapper auditNodeMapper;
 
     @Autowired
     private AuditMapStructMapper mapStructMapper;
+
+    @Autowired
+    private PlatformAdminMapper platformAdminMapper;
 
     @Autowired
     private AuditStateMachine stateMachine;
@@ -279,27 +285,42 @@ public class VendorServiceImpl implements VendorService {
             progressVO.setCurrentRound(latestRecord.getRound());
             progressVO.setAuditRecord(mapStructMapper.auditRecordPoToVo(latestRecord));
 
-            // 获取该轮次的流程实例列表
-            LambdaQueryWrapper<AuditInstancePO> instanceWrapper = Wrappers.lambdaQuery();
-            instanceWrapper.eq(AuditInstancePO::getAuditRecordId, latestRecord.getAuditRecordId());
-            instanceWrapper.orderByAsc(AuditInstancePO::getAuditNodeId);
-            List<AuditInstancePO> instances = auditInstanceMapper.selectList(instanceWrapper);
+            // 查询所有启用的审核节点，按顺序展示
+            LambdaQueryWrapper<AuditNodePO> nodeWrapper = Wrappers.lambdaQuery();
+            nodeWrapper.eq(AuditNodePO::getIsActive, true);
+            nodeWrapper.orderByAsc(AuditNodePO::getOrder);
+            List<AuditNodePO> allNodes = auditNodeMapper.selectList(nodeWrapper);
+
+            // 查询该轮次已创建的任务
+            LambdaQueryWrapper<AuditTaskPO> taskWrapper = Wrappers.lambdaQuery();
+            taskWrapper.eq(AuditTaskPO::getAuditRecordId, latestRecord.getAuditRecordId());
+            List<AuditTaskPO> tasks = auditTaskMapper.selectList(taskWrapper);
+            // 按节点ID索引任务
+            java.util.Map<Integer, AuditTaskPO> taskMap = tasks.stream()
+                    .collect(Collectors.toMap(AuditTaskPO::getAuditNodeId, t -> t));
 
             List<AuditInstanceVO> instanceVOs = new ArrayList<>();
-            for (AuditInstancePO inst : instances) {
+            for (AuditNodePO node : allNodes) {
                 AuditInstanceVO vo = new AuditInstanceVO();
-                vo.setAuditInstanceId(inst.getAuditInstanceId());
-                vo.setVendorId(inst.getVendorId());
-                vo.setAuditRecordId(inst.getAuditRecordId());
-                vo.setAuditNodeId(inst.getAuditNodeId());
-                vo.setCreatedTime(inst.getCreatedTime());
-                vo.setStartedTime(inst.getStartedTime());
-                vo.setCompletedTime(inst.getCompletedTime());
-                // 查询节点信息
-                AuditNodePO node = auditNodeMapper.selectById(inst.getAuditNodeId());
-                if (node != null) {
-                    vo.setNodeName(node.getName());
-                    vo.setNodeType(node.getType().getValue());
+                vo.setAuditNodeId(node.getAuditNodeId());
+                vo.setNodeName(node.getName());
+                vo.setNodeType(node.getType() != null ? node.getType().getValue() : null);
+
+                AuditTaskPO task = taskMap.get(node.getAuditNodeId());
+                if (task != null) {
+                    vo.setAuditTaskId(task.getAuditTaskId());
+                    vo.setVendorId(task.getVendorId());
+                    vo.setAuditRecordId(task.getAuditRecordId());
+                    vo.setCreatedTime(task.getCreatedTime());
+                    vo.setCompletedTime(task.getCompletedTime());
+                    vo.setPassed(task.getPassed());
+                    vo.setNotes(task.getNotes());
+                    if (task.getAdminId() != null) {
+                        PlatformAdminPO admin = platformAdminMapper.selectById(task.getAdminId());
+                        if (admin != null) {
+                            vo.setAdminName(admin.getRealName() != null ? admin.getRealName() : admin.getUsername());
+                        }
+                    }
                 }
                 instanceVOs.add(vo);
             }
@@ -348,6 +369,90 @@ public class VendorServiceImpl implements VendorService {
                 .build();
     }
 
+    /**
+     * 获取当前厂商用户关联厂商的审核记录列表
+     * <p>从 vendor_audit_records 查询，公司信息从 data 快照解析
+     */
+    @Override
+    public HttpResponseVO<List<VendorListVO>> getMyAuditRecords() {
+        PcUserInfo userInfo = UserContext.get();
+
+        LambdaQueryWrapper<VendorUserRelationPO> relWrapper = Wrappers.lambdaQuery();
+        relWrapper.eq(VendorUserRelationPO::getVendorUserId, userInfo.getUserId());
+        List<VendorUserRelationPO> relations = vendorUserRelationMapper.selectList(relWrapper);
+
+        if (relations == null || relations.isEmpty()) {
+            return HttpResponseVO.<List<VendorListVO>>builder()
+                    .data(List.of())
+                    .code(HttpStatusConstants.SUCCESS)
+                    .msg("暂无审核记录")
+                    .build();
+        }
+
+        List<Integer> vendorIds = relations.stream()
+                .map(VendorUserRelationPO::getVendorId)
+                .collect(Collectors.toList());
+
+        // 查询所有记录，用于计算每个厂商的最大轮次
+        LambdaQueryWrapper<VendorAuditRecordPO> allWrapper = Wrappers.lambdaQuery();
+        allWrapper.in(VendorAuditRecordPO::getVendorId, vendorIds);
+        List<VendorAuditRecordPO> allRecords = vendorAuditRecordMapper.selectList(allWrapper);
+
+        // 每个厂商的最大轮次
+        java.util.Map<Integer, Integer> maxRoundMap = allRecords.stream()
+                .collect(Collectors.groupingBy(VendorAuditRecordPO::getVendorId,
+                        Collectors.collectingAndThen(
+                                Collectors.maxBy(java.util.Comparator.comparingInt(VendorAuditRecordPO::getRound)),
+                                opt -> opt.map(VendorAuditRecordPO::getRound).orElse(0))));
+
+        // 失败结果集合
+        java.util.Set<AuditRecordResultEnum> failedResults = java.util.Set.of(
+                AuditRecordResultEnum.QUALIFICATION_FAILED,
+                AuditRecordResultEnum.FUNCTIONAL_TEST_FAILED,
+                AuditRecordResultEnum.PERFORMANCE_TEST_FAILED,
+                AuditRecordResultEnum.FINAL_APPROVAL_REJECTED);
+
+        // 已结束的结果集合
+        java.util.Set<AuditRecordResultEnum> finishedResults = new java.util.HashSet<>(failedResults);
+        finishedResults.add(AuditRecordResultEnum.APPROVED);
+
+        // 只返回已结束的记录
+        List<VendorListVO> voList = allRecords.stream()
+                .filter(r -> finishedResults.contains(r.getResult()))
+                .sorted(java.util.Comparator.comparing(VendorAuditRecordPO::getCreatedTime).reversed())
+                .map(record -> {
+            VendorListVO vo = new VendorListVO();
+            vo.setVendorId(record.getVendorId());
+            vo.setAuditRecordId(record.getAuditRecordId());
+            vo.setCurrentRound(record.getRound());
+            vo.setResult(record.getResult());
+            vo.setCreatedTime(record.getCreatedTime());
+            vo.setCompletedTime(record.getCompletedTime());
+
+            // 可重新申请：被驳回 且 是该厂商最高轮次
+            vo.setCanResubmit(failedResults.contains(record.getResult())
+                    && record.getRound().equals(maxRoundMap.get(record.getVendorId())));
+
+            if (record.getData() instanceof java.util.Map<?, ?> dataMap) {
+                vo.setCompanyName(getStr(dataMap, "companyName"));
+                vo.setShortName(getStr(dataMap, "shortName"));
+            }
+
+            return vo;
+        }).collect(Collectors.toList());
+
+        return HttpResponseVO.<List<VendorListVO>>builder()
+                .data(voList)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取审核记录列表成功")
+                .build();
+    }
+
+    private String getStr(java.util.Map<?, ?> map, String key) {
+        Object val = map.get(key);
+        return val != null ? val.toString() : null;
+    }
+
     // ========== 私有方法 ==========
 
     private VendorPO getVendorByUserId(Integer userId) {
@@ -383,8 +488,7 @@ public class VendorServiceImpl implements VendorService {
         vendor.setIntroduction(dto.getIntroduction());
         vendor.setBusinessScope(dto.getBusinessScope());
         vendor.setApiEndpoint(dto.getApiEndpoint());
-        vendor.setApiDocumentUrl(dto.getApiDocumentUrl());
-        vendor.setCallbackUrl(dto.getCallbackUrl());
-        vendor.setApiVersion(dto.getApiVersion());
+        vendor.setVendorAccessToken(dto.getVendorAccessToken());
+        vendor.setPlatformAccessToken(dto.getPlatformAccessToken());
     }
 }

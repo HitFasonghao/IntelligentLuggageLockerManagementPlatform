@@ -28,9 +28,8 @@ public class VendorVO {
     private String introduction;
     private String businessScope;
     private String apiEndpoint;
-    private String apiDocumentUrl;
-    private String callbackUrl;
-    private String apiVersion;
+    private String vendorAccessToken;
+    private String platformAccessToken;
     private VendorStatusEnum status;
     private LocalDateTime submittedTime;
     private LocalDateTime reviewedTime;

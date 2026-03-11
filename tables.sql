@@ -216,3 +216,45 @@ INSERT INTO audit_nodes (name, type, `order`, auto_pass, timeout_hours, is_activ
 -- INSERT INTO pc_permission (name, code, type, parent_id, path, component, show_status, enable_status, sort)
 -- VALUES ('审核任务分配', 'AuditAssignment', 'MENU', <AuditMgt的permission_id>, '/audit/assignments', '/src/views/audit/assignments/index.vue', 1, 1, 0);
 -- INSERT INTO pc_role_permission (role_id, permission_id) VALUES (1, <上面插入的permission_id>);
+
+
+CREATE TABLE cabinets (
+                          cabinet_id INT NOT NULL COMMENT '寄存柜标识',
+                          vendor_id INT NOT NULL COMMENT '厂商标识',
+                          device_id VARCHAR(30) NOT NULL COMMENT '设备id',
+                          number INT COMMENT '格口号',
+                          status ENUM('free','opening','using','forbidden') NOT NULL COMMENT '状态',
+                          kind_id INT COMMENT '寄存柜种类标识',
+                          cluster_id INT COMMENT '柜群标识',
+                          PRIMARY KEY (cabinet_id),
+    -- 外键约束（关联厂商表/种类表/柜群表，若未创建关联表可注释）
+                          CONSTRAINT fk_cabinets_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (vendor_id),
+                          CONSTRAINT fk_cabinets_kind FOREIGN KEY (kind_id) REFERENCES cabinet_kinds (kind_id),
+                          CONSTRAINT fk_cabinets_cluster FOREIGN KEY (cluster_id) REFERENCES clusters (cluster_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='寄存柜表';
+
+CREATE TABLE cabinet_kinds (
+                               kind_id INT NOT NULL COMMENT '寄存柜种类标识',
+                               vendor_id INT NOT NULL COMMENT '厂商标识',
+                               name VARCHAR(60) NOT NULL COMMENT '种类名称',
+                               description TEXT COMMENT '描述',
+                               charge DECIMAL(10,2) NOT NULL COMMENT '收费金额(单位/元)',
+                               time_unit ENUM('anHour','halfAnHour','tenMinutes') NOT NULL COMMENT '收费时间单位',
+                               PRIMARY KEY (kind_id),
+                               CONSTRAINT fk_cabinets_kinds_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (vendor_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='寄存柜种类表';
+
+CREATE TABLE clusters (
+                          cluster_id INT NOT NULL COMMENT '柜群标识',
+                          vendor_id INT NOT NULL COMMENT '厂商标识',
+                          name VARCHAR(60) NOT NULL COMMENT '柜群名称',
+                          location VARCHAR(300) NOT NULL COMMENT '柜群地址',
+                          longitude DECIMAL(11,6) COMMENT '经度',
+                          dimension DECIMAL(10,6) COMMENT '维度',
+                          status ENUM('using','forbidden') NOT NULL COMMENT '状态',
+                          description TEXT COMMENT '描述',
+                          created_time TIMESTAMP NOT NULL COMMENT '创建时间',
+                          updated_time TIMESTAMP NOT NULL COMMENT '最后更新时间',
+                          PRIMARY KEY (cluster_id),
+                          CONSTRAINT fk_clusters_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (vendor_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='柜群表';

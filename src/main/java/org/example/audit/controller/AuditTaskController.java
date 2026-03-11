@@ -47,6 +47,14 @@ public class AuditTaskController {
     }
 
     /**
+     * 根据审核记录ID获取任务列表
+     */
+    @GetMapping("/record/{recordId}")
+    public HttpResponseVO<List<AuditTaskVO>> getTasksByRecord(@PathVariable Integer recordId) {
+        return auditTaskService.getTasksByRecord(recordId);
+    }
+
+    /**
      * 分配审核任务
      */
     @PostMapping

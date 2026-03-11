@@ -11,7 +11,7 @@ import lombok.Getter;
 @Getter
 public enum AuditNodeTypeEnum {
     QUALIFICATION("qualification"),
-    API_TEST("api_test"),
+    FUNCTIONAL_TEST("functional_test"),
     PERFORMANCE("performance"),
     COMPLIANCE("compliance"),
     MANUAL_REVIEW("manual_review");

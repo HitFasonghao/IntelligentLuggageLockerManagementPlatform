@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 @Data
 public class AssignAuditTaskDTO {
 
-    @NotNull(message = "审核实例ID不能为空")
-    private Integer auditInstanceId;
+    @NotNull(message = "审核任务ID不能为空")
+    private Integer auditTaskId;
 
     @NotNull(message = "审核节点ID不能为空")
     private Integer auditNodeId;

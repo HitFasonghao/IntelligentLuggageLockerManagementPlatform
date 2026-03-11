@@ -1,6 +1,7 @@
 package org.example.audit.vo;
 
 import lombok.Data;
+import org.example.audit.enums.AuditRecordResultEnum;
 import org.example.audit.enums.VendorStatusEnum;
 
 import java.time.LocalDateTime;
@@ -13,12 +14,19 @@ import java.time.LocalDateTime;
 public class VendorListVO {
 
     private Integer vendorId;
+    /** 审核记录ID */
+    private Integer auditRecordId;
     private String companyName;
     private String shortName;
     private String contactPerson;
     private String contactPhone;
     private VendorStatusEnum status;
+    /** 审核进度结果 */
+    private AuditRecordResultEnum result;
     private Integer currentRound;
     private LocalDateTime submittedTime;
     private LocalDateTime createdTime;
+    private LocalDateTime completedTime;
+    /** 是否可重新申请 */
+    private Boolean canResubmit;
 }

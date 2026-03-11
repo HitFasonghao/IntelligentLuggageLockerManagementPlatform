@@ -1,9 +1,6 @@
 package org.example.audit.po;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import org.example.audit.enums.AuditTaskPriorityEnum;
 import org.example.audit.enums.AuditTaskStatusEnum;
@@ -11,7 +8,7 @@ import org.example.audit.enums.AuditTaskStatusEnum;
 import java.time.LocalDateTime;
 
 /**
- * 审核任务分配表
+ * 审核任务表
  * 对应表：audit_tasks
  * @author fasonghao
  */
@@ -22,8 +19,11 @@ public class AuditTaskPO {
     @TableId(value = "audit_task_id", type = IdType.AUTO)
     private Integer auditTaskId;
 
-    @TableField("audit_instance_id")
-    private Integer auditInstanceId;
+    @TableField("vendor_id")
+    private Integer vendorId;
+
+    @TableField("audit_record_id")
+    private Integer auditRecordId;
 
     @TableField("audit_node_id")
     private Integer auditNodeId;
@@ -46,6 +46,9 @@ public class AuditTaskPO {
     @TableField("notes")
     private String notes;
 
-    @TableField("result")
-    private String result;
+    @TableField("passed")
+    private Boolean passed;
+
+    @TableField(value = "created_time", fill = FieldFill.INSERT)
+    private LocalDateTime createdTime;
 }

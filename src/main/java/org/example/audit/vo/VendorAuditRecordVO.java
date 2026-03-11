@@ -1,9 +1,8 @@
 package org.example.audit.vo;
 
 import lombok.Data;
-import org.example.audit.enums.AuditResultEnum;
+import org.example.audit.enums.AuditRecordResultEnum;
 import org.example.audit.enums.AuditTypeEnum;
-import org.example.audit.enums.TestResultEnum;
 
 import java.time.LocalDateTime;
 
@@ -22,14 +21,10 @@ public class VendorAuditRecordVO {
     private AuditTypeEnum type;
     private Object data;
     private Integer adminId;
-    private String auditNotes;
-    private AuditResultEnum auditResult;
-    private TestResultEnum testResult;
-    private String testNotes;
-    private LocalDateTime testStartedTime;
-    private LocalDateTime testCompletedTime;
-    private Object apiValidationResult;
-    private Object performanceResult;
+    /** 审核管理员名称 */
+    private String adminName;
+    /** 审核进度结果 */
+    private AuditRecordResultEnum result;
     private LocalDateTime createdTime;
     private LocalDateTime completedTime;
 }

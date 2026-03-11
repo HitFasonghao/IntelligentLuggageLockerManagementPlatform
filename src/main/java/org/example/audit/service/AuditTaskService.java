@@ -29,4 +29,7 @@ public interface AuditTaskService {
 
     /** 获取单个任务详情 */
     HttpResponseVO<AuditTaskVO> getTaskById(Integer taskId);
+
+    /** 根据审核记录ID获取任务列表 */
+    HttpResponseVO<List<AuditTaskVO>> getTasksByRecord(Integer recordId);
 }

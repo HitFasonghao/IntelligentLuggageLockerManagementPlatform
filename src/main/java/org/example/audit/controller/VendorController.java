@@ -6,6 +6,7 @@ import org.example.audit.service.FileStorageService;
 import org.example.audit.service.VendorService;
 import org.example.audit.service.VendorUserRelationService;
 import org.example.audit.vo.AuditProgressVO;
+import org.example.audit.vo.VendorListVO;
 import org.example.audit.vo.VendorUserRelationVO;
 import org.example.audit.vo.VendorVO;
 import org.example.auth.constants.HttpStatusConstants;
@@ -72,6 +73,14 @@ public class VendorController {
     @GetMapping("/myVendors")
     public HttpResponseVO<List<VendorVO>> getMyVendors() {
         return vendorService.getMyVendors();
+    }
+
+    /**
+     * 获取当前厂商用户关联厂商的审核记录列表
+     */
+    @GetMapping("/myAuditRecords")
+    public HttpResponseVO<List<VendorListVO>> getMyAuditRecords() {
+        return vendorService.getMyAuditRecords();
     }
 
     /**

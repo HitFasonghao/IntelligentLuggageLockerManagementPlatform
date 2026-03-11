@@ -63,14 +63,11 @@ public class VendorPO {
     @TableField("api_endpoint")
     private String apiEndpoint;
 
-    @TableField("api_document_url")
-    private String apiDocumentUrl;
+    @TableField("vendor_access_token")
+    private String vendorAccessToken;
 
-    @TableField("callback_url")
-    private String callbackUrl;
-
-    @TableField("api_version")
-    private String apiVersion;
+    @TableField("platform_access_token")
+    private String platformAccessToken;
 
     @TableField("status")
     private VendorStatusEnum status;

@@ -7,7 +7,7 @@ public interface Constants {
     //PC端访问token在Redis中的前缀
     String TOKEN_PREFIX = "token:pc:";
     //PC端访问Token过期时间
-    int TOKEN_EXPIRE_TIME = 1800;
+    int TOKEN_EXPIRE_TIME = 3600;
     //PC端登录token长度
     int TOKEN_BYTE_LENGTH=32;
     //短信验证码发送url

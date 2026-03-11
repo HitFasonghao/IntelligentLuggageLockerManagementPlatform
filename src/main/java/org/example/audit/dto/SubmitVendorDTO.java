@@ -55,12 +55,9 @@ public class SubmitVendorDTO {
     @Size(max = 500, message = "API接口地址长度不能超过500")
     private String apiEndpoint;
 
-    @Size(max = 500, message = "API文档地址长度不能超过500")
-    private String apiDocumentUrl;
+    @Size(max = 500, message = "厂商系统访问token长度不能超过500")
+    private String vendorAccessToken;
 
-    @Size(max = 500, message = "回调地址长度不能超过500")
-    private String callbackUrl;
-
-    @Size(max = 20, message = "API版本长度不能超过20")
-    private String apiVersion;
+    @Size(max = 500, message = "平台访问token长度不能超过500")
+    private String platformAccessToken;
 }

@@ -3,7 +3,7 @@ package org.example.audit.service;
 import org.example.audit.dto.FinalApprovalDTO;
 import org.example.audit.dto.PerformanceTestDTO;
 import org.example.audit.dto.QualificationAuditDTO;
-import org.example.audit.dto.TechTestAuditDTO;
+import org.example.audit.dto.FunctionalTestDTO;
 import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.vo.AuditTaskVO;
 import org.example.audit.vo.VendorAuditRecordVO;
@@ -22,8 +22,8 @@ public interface AuditService {
     /** 获取厂商审核列表（支持按状态筛选） */
     HttpResponseVO<List<VendorListVO>> getVendorList(VendorStatusEnum status);
 
-    /** 获取厂商详情（含资质信息） */
-    HttpResponseVO<VendorVO> getVendorDetail(Integer vendorId);
+    /** 获取厂商详情（含资质信息），传 recordId 时从审核记录快照中读取 */
+    HttpResponseVO<VendorVO> getVendorDetail(Integer vendorId, Integer recordId);
 
     /** 获取厂商的审核记录列表 */
     HttpResponseVO<List<VendorAuditRecordVO>> getAuditRecords(Integer vendorId);
@@ -31,8 +31,8 @@ public interface AuditService {
     /** 资质审核 */
     HttpResponseVO<String> qualificationAudit(Integer vendorId, QualificationAuditDTO dto);
 
-    /** API接口测试审核 */
-    HttpResponseVO<String> techTestAudit(Integer vendorId, TechTestAuditDTO dto);
+    /** 功能测试审核 */
+    HttpResponseVO<String> functionalTestAudit(Integer vendorId, FunctionalTestDTO dto);
 
     /** 性能测试审核 */
     HttpResponseVO<String> performanceTest(Integer vendorId, PerformanceTestDTO dto);

@@ -4,7 +4,7 @@ import jakarta.validation.Valid;
 import org.example.audit.dto.FinalApprovalDTO;
 import org.example.audit.dto.PerformanceTestDTO;
 import org.example.audit.dto.QualificationAuditDTO;
-import org.example.audit.dto.TechTestAuditDTO;
+import org.example.audit.dto.FunctionalTestDTO;
 import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.service.AuditService;
 import org.example.audit.vo.AuditTaskVO;
@@ -41,8 +41,9 @@ public class AuditController {
      * 获取厂商详情
      */
     @GetMapping("/vendors/{vendorId}")
-    public HttpResponseVO<VendorVO> getVendorDetail(@PathVariable Integer vendorId) {
-        return auditService.getVendorDetail(vendorId);
+    public HttpResponseVO<VendorVO> getVendorDetail(@PathVariable Integer vendorId,
+                                                     @RequestParam(required = false) Integer recordId) {
+        return auditService.getVendorDetail(vendorId, recordId);
     }
 
     /**
@@ -71,12 +72,12 @@ public class AuditController {
     }
 
     /**
-     * 技术测试审核
+     * 功能测试审核
      */
-    @PostMapping("/vendors/{vendorId}/techTest")
-    public HttpResponseVO<String> techTestAudit(@PathVariable Integer vendorId,
-                                                @RequestBody @Valid TechTestAuditDTO dto) {
-        return auditService.techTestAudit(vendorId, dto);
+    @PostMapping("/vendors/{vendorId}/functionalTest")
+    public HttpResponseVO<String> functionalTestAudit(@PathVariable Integer vendorId,
+                                                       @RequestBody @Valid FunctionalTestDTO dto) {
+        return auditService.functionalTestAudit(vendorId, dto);
     }
 
     /**

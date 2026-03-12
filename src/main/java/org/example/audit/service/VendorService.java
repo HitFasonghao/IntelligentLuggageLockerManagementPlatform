@@ -1,6 +1,7 @@
 package org.example.audit.service;
 
 import org.example.audit.dto.SubmitVendorDTO;
+import org.example.audit.dto.VendorProgressQueryDTO;
 import org.example.audit.vo.AuditProgressVO;
 import org.example.audit.vo.VendorListVO;
 import org.example.audit.vo.VendorVO;
@@ -8,6 +9,7 @@ import org.example.auth.vo.HttpResponseVO;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 厂商服务接口（厂商用户端）
@@ -38,5 +40,8 @@ public interface VendorService {
     HttpResponseVO<AuditProgressVO> getAuditProgress(Integer vendorId);
 
     /** 获取当前厂商用户关联厂商的审核记录列表 */
-    HttpResponseVO<List<VendorListVO>> getMyAuditRecords();
+    HttpResponseVO<Map<String, Object>> getMyAuditRecords(VendorProgressQueryDTO queryDTO);
+
+    /** 刷新平台访问Token */
+    HttpResponseVO<String> refreshPlatformToken();
 }

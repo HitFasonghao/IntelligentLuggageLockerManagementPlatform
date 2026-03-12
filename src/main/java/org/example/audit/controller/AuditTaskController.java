@@ -2,6 +2,7 @@ package org.example.audit.controller;
 
 import jakarta.validation.Valid;
 import org.example.audit.dto.AssignAuditTaskDTO;
+import org.example.audit.dto.AuditTaskQueryDTO;
 import org.example.audit.dto.UpdateAuditTaskDTO;
 import org.example.audit.service.AuditTaskService;
 import org.example.audit.vo.AuditTaskVO;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 审核任务工作台接口（平台管理员使用）
@@ -26,8 +28,16 @@ public class AuditTaskController {
      * 获取当前管理员的任务列表
      */
     @GetMapping("/my")
-    public HttpResponseVO<List<AuditTaskVO>> getMyTasks() {
-        return auditTaskService.getMyTasks();
+    public HttpResponseVO<Map<String, Object>> getMyTasks(AuditTaskQueryDTO queryDTO) {
+        return auditTaskService.getMyTasks(queryDTO);
+    }
+
+    /**
+     * 获取审核节点选项列表（用于下拉选择）
+     */
+    @GetMapping("/nodeOptions")
+    public HttpResponseVO<List<Map<String, Object>>> getNodeOptions() {
+        return auditTaskService.getNodeOptions();
     }
 
     /**

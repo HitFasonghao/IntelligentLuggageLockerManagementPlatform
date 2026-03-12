@@ -18,6 +18,8 @@ public class VendorUserInfoVO {
 
     private String realName;
 
+    private String avatar;
+
     private VendorUserStatusEnum status;
 
     private LocalDateTime passwordChangedTime;

@@ -1,5 +1,6 @@
 package org.example.audit.controller;
 
+import org.example.audit.dto.ApprovedVendorQueryDTO;
 import org.example.audit.dto.VendorOperationDTO;
 import org.example.audit.service.VendorManagementService;
 import org.example.audit.vo.VendorListVO;
@@ -9,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 厂商管理接口（已入驻厂商的日常管理，平台管理员使用）
@@ -25,8 +27,8 @@ public class VendorManagementController {
      * 获取正常厂商列表（approved）
      */
     @GetMapping("/approved")
-    public HttpResponseVO<List<VendorListVO>> getApprovedVendors() {
-        return vendorManagementService.getApprovedVendors();
+    public HttpResponseVO<Map<String, Object>> getApprovedVendors(ApprovedVendorQueryDTO queryDTO) {
+        return vendorManagementService.getApprovedVendors(queryDTO);
     }
 
     /**

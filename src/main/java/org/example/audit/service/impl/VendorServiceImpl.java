@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.example.audit.enums.AuditRecordResultEnum;
 import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.dto.SubmitVendorDTO;
+import org.example.audit.dto.VendorProgressQueryDTO;
 import org.example.audit.mapper.*;
 import org.example.audit.po.*;
 import org.example.audit.service.VendorService;
@@ -21,9 +22,12 @@ import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -222,7 +226,7 @@ public class VendorServiceImpl implements VendorService {
     }
 
     /**
-     * 获取当前厂商用户关联的厂商信息
+     * 获取当前厂商用户关联的厂商信息（通过上下文vendorId获取）
      */
     @Override
     public HttpResponseVO<VendorVO> getMyVendorInfo() {
@@ -234,7 +238,15 @@ public class VendorServiceImpl implements VendorService {
                     .build();
         }
 
-        VendorPO vendor = getVendorByUserId(userInfo.getUserId());
+        Integer vendorId = userInfo.getVendorId();
+        if (vendorId == null) {
+            return HttpResponseVO.<VendorVO>builder()
+                    .code(HttpStatusConstants.SUCCESS)
+                    .msg("暂未关联厂商")
+                    .build();
+        }
+
+        VendorPO vendor = vendorMapper.selectById(vendorId);
         if (vendor == null) {
             return HttpResponseVO.<VendorVO>builder()
                     .code(HttpStatusConstants.SUCCESS)
@@ -374,7 +386,7 @@ public class VendorServiceImpl implements VendorService {
      * <p>从 vendor_audit_records 查询，公司信息从 data 快照解析
      */
     @Override
-    public HttpResponseVO<List<VendorListVO>> getMyAuditRecords() {
+    public HttpResponseVO<Map<String, Object>> getMyAuditRecords(VendorProgressQueryDTO queryDTO) {
         PcUserInfo userInfo = UserContext.get();
 
         LambdaQueryWrapper<VendorUserRelationPO> relWrapper = Wrappers.lambdaQuery();
@@ -382,8 +394,13 @@ public class VendorServiceImpl implements VendorService {
         List<VendorUserRelationPO> relations = vendorUserRelationMapper.selectList(relWrapper);
 
         if (relations == null || relations.isEmpty()) {
-            return HttpResponseVO.<List<VendorListVO>>builder()
-                    .data(List.of())
+            Map<String, Object> emptyResult = new HashMap<>();
+            emptyResult.put("list", List.of());
+            emptyResult.put("total", 0);
+            emptyResult.put("pageNum", queryDTO.getPageNum());
+            emptyResult.put("pageSize", queryDTO.getPageSize());
+            return HttpResponseVO.<Map<String, Object>>builder()
+                    .data(emptyResult)
                     .code(HttpStatusConstants.SUCCESS)
                     .msg("暂无审核记录")
                     .build();
@@ -441,10 +458,79 @@ public class VendorServiceImpl implements VendorService {
             return vo;
         }).collect(Collectors.toList());
 
-        return HttpResponseVO.<List<VendorListVO>>builder()
-                .data(voList)
+        // In-memory filtering
+        List<VendorListVO> filteredList = voList.stream()
+                .filter(vo -> {
+                    if (StringUtils.hasText(queryDTO.getCompanyName())) {
+                        if (vo.getCompanyName() == null
+                                || !vo.getCompanyName().toLowerCase().contains(queryDTO.getCompanyName().toLowerCase())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getResult() != null) {
+                        if (vo.getResult() != queryDTO.getResult()) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+                .collect(Collectors.toList());
+
+        // In-memory pagination
+        int total = filteredList.size();
+        int pageNum = queryDTO.getPageNum();
+        int pageSize = queryDTO.getPageSize();
+        int fromIndex = Math.min((pageNum - 1) * pageSize, total);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+        List<VendorListVO> pagedList = filteredList.subList(fromIndex, toIndex);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", pagedList);
+        result.put("total", total);
+        result.put("pageNum", pageNum);
+        result.put("pageSize", pageSize);
+
+        return HttpResponseVO.<Map<String, Object>>builder()
+                .data(result)
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("获取审核记录列表成功")
+                .build();
+    }
+
+    @Override
+    public HttpResponseVO<String> refreshPlatformToken() {
+        PcUserInfo userInfo = UserContext.get();
+        Integer vendorId = userInfo.getVendorId();
+        if (vendorId == null) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("当前用户未关联厂商")
+                    .build();
+        }
+
+        VendorPO vendor = vendorMapper.selectById(vendorId);
+        if (vendor == null) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("厂商不存在")
+                    .build();
+        }
+
+        if (vendor.getStatus() != VendorStatusEnum.APPROVED) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("仅已审核通过的厂商可以刷新Token")
+                    .build();
+        }
+
+        String newToken = "PAT-" + java.util.UUID.randomUUID().toString().replace("-", "");
+        vendor.setPlatformAccessToken(newToken);
+        vendorMapper.updateById(vendor);
+
+        return HttpResponseVO.<String>builder()
+                .data(newToken)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("平台访问Token已刷新")
                 .build();
     }
 
@@ -459,6 +545,7 @@ public class VendorServiceImpl implements VendorService {
         LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(VendorUserRelationPO::getVendorUserId, userId);
         wrapper.eq(VendorUserRelationPO::getIsMain, true);
+        wrapper.last("LIMIT 1");
         VendorUserRelationPO relation = vendorUserRelationMapper.selectOne(wrapper);
         if (relation == null) {
             return null;
@@ -489,6 +576,5 @@ public class VendorServiceImpl implements VendorService {
         vendor.setBusinessScope(dto.getBusinessScope());
         vendor.setApiEndpoint(dto.getApiEndpoint());
         vendor.setVendorAccessToken(dto.getVendorAccessToken());
-        vendor.setPlatformAccessToken(dto.getPlatformAccessToken());
     }
 }

@@ -1,21 +1,21 @@
 package org.example.audit.controller;
 
 import jakarta.validation.Valid;
+import org.example.audit.dto.AuditRecordQueryDTO;
 import org.example.audit.dto.FinalApprovalDTO;
 import org.example.audit.dto.PerformanceTestDTO;
 import org.example.audit.dto.QualificationAuditDTO;
 import org.example.audit.dto.FunctionalTestDTO;
-import org.example.audit.enums.VendorStatusEnum;
+import org.example.audit.dto.VendorAuditQueryDTO;
 import org.example.audit.service.AuditService;
-import org.example.audit.vo.AuditTaskVO;
 import org.example.audit.vo.VendorAuditRecordVO;
-import org.example.audit.vo.VendorListVO;
 import org.example.audit.vo.VendorVO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 审核管理接口（平台管理员使用）
@@ -32,9 +32,8 @@ public class AuditController {
      * 获取厂商审核列表
      */
     @GetMapping("/vendors")
-    public HttpResponseVO<List<VendorListVO>> getVendorList(
-            @RequestParam(required = false) VendorStatusEnum status) {
-        return auditService.getVendorList(status);
+    public HttpResponseVO<Map<String, Object>> getVendorList(VendorAuditQueryDTO queryDTO) {
+        return auditService.getVendorList(queryDTO);
     }
 
     /**
@@ -58,8 +57,8 @@ public class AuditController {
      * 获取当前管理员的审核完成记录（审核记录页使用）
      */
     @GetMapping("/records")
-    public HttpResponseVO<List<AuditTaskVO>> getMyAuditRecords() {
-        return auditService.getMyAuditRecords();
+    public HttpResponseVO<Map<String, Object>> getMyAuditRecords(AuditRecordQueryDTO queryDTO) {
+        return auditService.getMyAuditRecords(queryDTO);
     }
 
     /**

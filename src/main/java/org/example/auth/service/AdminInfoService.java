@@ -4,6 +4,7 @@ import org.example.auth.dto.UpdateAdminDTO;
 import org.example.auth.vo.AdminInfoVO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * @author fasonghao
@@ -20,4 +21,9 @@ public interface AdminInfoService {
      * 修改账号状态
      */
     HttpResponseVO<String> updateAdminInfo(UpdateAdminDTO updateVendorUserDTO);
+
+    /**
+     * 更换头像
+     */
+    HttpResponseVO<String> updateAvatar(MultipartFile file);
 }

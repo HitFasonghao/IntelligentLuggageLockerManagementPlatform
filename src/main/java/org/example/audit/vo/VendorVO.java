@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 public class VendorVO {
 
     private Integer vendorId;
-    private String vendorCode;
     private String companyName;
     private String shortName;
     private String licenseNo;

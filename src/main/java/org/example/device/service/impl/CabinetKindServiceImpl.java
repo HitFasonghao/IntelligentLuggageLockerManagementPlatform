@@ -3,6 +3,8 @@ package org.example.device.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.example.auth.common.PcUserInfo;
+import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.vo.HttpResponseVO;
 import org.example.device.dto.CreateKindDTO;
@@ -52,6 +54,9 @@ public class CabinetKindServiceImpl implements CabinetKindService {
     @Override
     public HttpResponseVO<Map<String, Object>> listKinds(KindQueryDTO queryDTO) {
         LambdaQueryWrapper<CabinetKindPO> wrapper = Wrappers.lambdaQuery();
+
+        // 限制只查询当前厂商的种类
+        wrapper.eq(CabinetKindPO::getVendorId, getVendorId());
 
         if (StringUtils.hasText(queryDTO.getName())) {
             wrapper.like(CabinetKindPO::getName, queryDTO.getName());
@@ -158,11 +163,8 @@ public class CabinetKindServiceImpl implements CabinetKindService {
                 .build();
     }
 
-    /**
-     * 获取当前用户的厂商id（暂时硬编码，后续从UserContext中获取）
-     */
     private Integer getVendorId() {
-        // TODO: 从UserContext获取当前用户关联的vendorId
-        return 11;
+        PcUserInfo userInfo = UserContext.get();
+        return userInfo.getVendorId();
     }
 }

@@ -58,6 +58,4 @@ public class SubmitVendorDTO {
     @Size(max = 500, message = "厂商系统访问token长度不能超过500")
     private String vendorAccessToken;
 
-    @Size(max = 500, message = "平台访问token长度不能超过500")
-    private String platformAccessToken;
 }

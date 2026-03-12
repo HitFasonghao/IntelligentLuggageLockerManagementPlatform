@@ -1,12 +1,14 @@
 package org.example.audit.service;
 
 import org.example.audit.dto.AssignAuditTaskDTO;
+import org.example.audit.dto.AuditTaskQueryDTO;
 import org.example.audit.dto.UpdateAuditTaskDTO;
 import org.example.audit.vo.AuditTaskVO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 审核任务服务接口
@@ -16,7 +18,10 @@ import java.util.List;
 public interface AuditTaskService {
 
     /** 获取当前管理员的任务列表 */
-    HttpResponseVO<List<AuditTaskVO>> getMyTasks();
+    HttpResponseVO<Map<String, Object>> getMyTasks(AuditTaskQueryDTO queryDTO);
+
+    /** 获取审核节点选项列表 */
+    HttpResponseVO<List<Map<String, Object>>> getNodeOptions();
 
     /** 获取指定厂商的任务列表 */
     HttpResponseVO<List<AuditTaskVO>> getTasksByVendor(Integer vendorId);

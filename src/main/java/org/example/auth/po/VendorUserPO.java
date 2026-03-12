@@ -50,6 +50,11 @@ public class VendorUserPO {
     private String realName;
 
     /**
+     * 头像URL
+     */
+    private String avatar;
+
+    /**
      * 账号状态：active-启用，locked-锁定，inactive-未启用
      */
     private VendorUserStatusEnum status;

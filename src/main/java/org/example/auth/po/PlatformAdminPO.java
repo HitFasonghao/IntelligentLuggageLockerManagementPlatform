@@ -48,6 +48,11 @@ public class PlatformAdminPO {
     private String phone;
 
     /**
+     * 头像URL
+     */
+    private String avatar;
+
+    /**
      * 是否为超级管理员
      */
     private Boolean isSuperAdmin;

@@ -8,6 +8,7 @@ import org.example.auth.vo.AccessTokenVO;
 import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
 import org.example.auth.vo.PcPermissionVO;
+import org.example.auth.vo.UserBaseInfoVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -85,6 +86,14 @@ public class LoginController {
     @GetMapping("/getPermissions")
     public HttpResponseVO<List<PcPermissionVO>> getPermissions(){
         return loginService.getPermissions();
+    }
+
+    /**
+     * 获取当前用户基本信息
+     */
+    @GetMapping("/getUserInfo")
+    public HttpResponseVO<UserBaseInfoVO> getUserInfo(){
+        return loginService.getUserInfo();
     }
 
     /**

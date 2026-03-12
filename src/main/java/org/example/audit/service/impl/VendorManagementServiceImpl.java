@@ -2,6 +2,8 @@ package org.example.audit.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.example.audit.dto.ApprovedVendorQueryDTO;
 import org.example.audit.dto.VendorOperationDTO;
 import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.mapper.AuditMapStructMapper;
@@ -16,8 +18,11 @@ import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -37,11 +42,45 @@ public class VendorManagementServiceImpl implements VendorManagementService {
     private AuditStateMachine stateMachine;
 
     @Override
-    public HttpResponseVO<List<VendorListVO>> getApprovedVendors() {
+    public HttpResponseVO<Map<String, Object>> getApprovedVendors(ApprovedVendorQueryDTO queryDTO) {
         LambdaQueryWrapper<VendorPO> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(VendorPO::getStatus, VendorStatusEnum.APPROVED);
+
+        // Conditional: company name fuzzy match
+        if (StringUtils.hasText(queryDTO.getCompanyName())) {
+            wrapper.like(VendorPO::getCompanyName, queryDTO.getCompanyName());
+        }
+
         wrapper.orderByDesc(VendorPO::getApprovedTime);
-        return buildVendorListResponse(wrapper);
+
+        // Pagination
+        Page<VendorPO> page = new Page<>(queryDTO.getPageNum(), queryDTO.getPageSize());
+        Page<VendorPO> resultPage = vendorMapper.selectPage(page, wrapper);
+
+        List<VendorListVO> voList = resultPage.getRecords().stream().map(v -> {
+            VendorListVO vo = new VendorListVO();
+            vo.setVendorId(v.getVendorId());
+            vo.setCompanyName(v.getCompanyName());
+            vo.setShortName(v.getShortName());
+            vo.setContactPerson(v.getContactPerson());
+            vo.setContactPhone(v.getContactPhone());
+            vo.setStatus(v.getStatus());
+            vo.setSubmittedTime(v.getSubmittedTime());
+            vo.setCreatedTime(v.getCreatedTime());
+            return vo;
+        }).collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", voList);
+        result.put("total", resultPage.getTotal());
+        result.put("pageNum", resultPage.getCurrent());
+        result.put("pageSize", resultPage.getSize());
+
+        return HttpResponseVO.<Map<String, Object>>builder()
+                .data(result)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取厂商列表成功")
+                .build();
     }
 
     @Override

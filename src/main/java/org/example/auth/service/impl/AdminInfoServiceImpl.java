@@ -2,6 +2,7 @@ package org.example.auth.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.extern.slf4j.Slf4j;
+import org.example.audit.service.FileStorageService;
 import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
@@ -16,6 +17,7 @@ import org.example.auth.vo.AdminInfoVO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * @author fasonghao
@@ -32,6 +34,9 @@ public class AdminInfoServiceImpl implements AdminInfoService {
 
     @Autowired
     private CommonService commonService;
+
+    @Autowired
+    private FileStorageService fileStorageService;
 
     /**
      * 查询账号装态
@@ -99,6 +104,36 @@ public class AdminInfoServiceImpl implements AdminInfoService {
                     .msg("更新失败，用户不存在或数据库发生变化")
                     .build();
         }
+    }
+
+    /**
+     * 更换头像
+     */
+    @Override
+    public HttpResponseVO<String> updateAvatar(MultipartFile file) {
+        PcUserInfo userInfo = UserContext.get();
+        PlatformAdminPO admin = platformAdminMapper.selectById(userInfo.getUserId());
+
+        // 上传新头像
+        String newAvatarUrl = fileStorageService.uploadFile(file, "avatar");
+
+        // 删除旧头像
+        String oldAvatarUrl = admin.getAvatar();
+        if (oldAvatarUrl != null && !oldAvatarUrl.isBlank()) {
+            fileStorageService.deleteFile(oldAvatarUrl);
+        }
+
+        // 更新数据库
+        LambdaUpdateWrapper<PlatformAdminPO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(PlatformAdminPO::getAdminId, userInfo.getUserId());
+        wrapper.set(PlatformAdminPO::getAvatar, newAvatarUrl);
+        platformAdminMapper.update(null, wrapper);
+
+        return HttpResponseVO.<String>builder()
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("头像更换成功")
+                .data(newAvatarUrl)
+                .build();
     }
 
 }

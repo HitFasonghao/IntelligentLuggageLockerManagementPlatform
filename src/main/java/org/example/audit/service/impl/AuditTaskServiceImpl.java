@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.example.audit.dto.AssignAuditTaskDTO;
+import org.example.audit.dto.AuditTaskQueryDTO;
 import org.example.audit.dto.UpdateAuditTaskDTO;
 import org.example.audit.enums.AuditTaskStatusEnum;
 import org.example.audit.mapper.*;
@@ -19,8 +20,12 @@ import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import org.springframework.util.StringUtils;
+
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -49,10 +54,10 @@ public class AuditTaskServiceImpl implements AuditTaskService {
     private PlatformAdminMapper platformAdminMapper;
 
     /**
-     * 获取当前管理员的任务列表
+     * 获取当前管理员的任务列表（支持条件查询 + 分页）
      */
     @Override
-    public HttpResponseVO<List<AuditTaskVO>> getMyTasks() {
+    public HttpResponseVO<Map<String, Object>> getMyTasks(AuditTaskQueryDTO queryDTO) {
         PcUserInfo userInfo = UserContext.get();
 
         LambdaQueryWrapper<AuditTaskPO> wrapper = Wrappers.lambdaQuery();
@@ -67,8 +72,36 @@ public class AuditTaskServiceImpl implements AuditTaskService {
                 .map(this::convertToVO)
                 .collect(Collectors.toList());
 
-        return HttpResponseVO.<List<AuditTaskVO>>builder()
-                .data(voList)
+        // 内存过滤
+        List<AuditTaskVO> filteredList = voList.stream()
+                .filter(vo -> !StringUtils.hasText(queryDTO.getCompanyName()) ||
+                        (vo.getCompanyName() != null && vo.getCompanyName().toLowerCase().contains(queryDTO.getCompanyName().toLowerCase())))
+                .filter(vo -> queryDTO.getAuditNodeId() == null ||
+                        vo.getAuditNodeId().equals(queryDTO.getAuditNodeId()))
+                .filter(vo -> queryDTO.getPriority() == null ||
+                        vo.getPriority() == queryDTO.getPriority())
+                .filter(vo -> queryDTO.getDueDateStart() == null ||
+                        (vo.getDueDate() != null && !vo.getDueDate().isBefore(queryDTO.getDueDateStart())))
+                .filter(vo -> queryDTO.getDueDateEnd() == null ||
+                        (vo.getDueDate() != null && !vo.getDueDate().isAfter(queryDTO.getDueDateEnd())))
+                .collect(Collectors.toList());
+
+        // 内存分页
+        int total = filteredList.size();
+        int pageNum = queryDTO.getPageNum();
+        int pageSize = queryDTO.getPageSize();
+        int fromIndex = Math.min((pageNum - 1) * pageSize, total);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+        List<AuditTaskVO> pagedList = filteredList.subList(fromIndex, toIndex);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", pagedList);
+        result.put("total", total);
+        result.put("pageNum", pageNum);
+        result.put("pageSize", pageSize);
+
+        return HttpResponseVO.<Map<String, Object>>builder()
+                .data(result)
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("获取任务列表成功")
                 .build();
@@ -214,6 +247,30 @@ public class AuditTaskServiceImpl implements AuditTaskService {
         }
 
         return vo;
+    }
+
+    /**
+     * 获取审核节点选项列表
+     */
+    @Override
+    public HttpResponseVO<List<Map<String, Object>>> getNodeOptions() {
+        LambdaQueryWrapper<AuditNodePO> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(AuditNodePO::getIsActive, true);
+        wrapper.orderByAsc(AuditNodePO::getOrder);
+        List<AuditNodePO> nodes = auditNodeMapper.selectList(wrapper);
+
+        List<Map<String, Object>> options = nodes.stream().map(node -> {
+            Map<String, Object> option = new HashMap<>();
+            option.put("auditNodeId", node.getAuditNodeId());
+            option.put("name", node.getName());
+            return option;
+        }).collect(Collectors.toList());
+
+        return HttpResponseVO.<List<Map<String, Object>>>builder()
+                .data(options)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取审核节点选项成功")
+                .build();
     }
 
     /**

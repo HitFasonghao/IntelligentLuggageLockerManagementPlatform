@@ -2,6 +2,7 @@ package org.example.audit.controller;
 
 import jakarta.validation.Valid;
 import org.example.audit.dto.SubmitVendorDTO;
+import org.example.audit.dto.VendorProgressQueryDTO;
 import org.example.audit.service.FileStorageService;
 import org.example.audit.service.VendorService;
 import org.example.audit.service.VendorUserRelationService;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 厂商端接口（厂商用户使用）
@@ -79,8 +81,8 @@ public class VendorController {
      * 获取当前厂商用户关联厂商的审核记录列表
      */
     @GetMapping("/myAuditRecords")
-    public HttpResponseVO<List<VendorListVO>> getMyAuditRecords() {
-        return vendorService.getMyAuditRecords();
+    public HttpResponseVO<Map<String, Object>> getMyAuditRecords(VendorProgressQueryDTO queryDTO) {
+        return vendorService.getMyAuditRecords(queryDTO);
     }
 
     /**
@@ -89,6 +91,14 @@ public class VendorController {
     @GetMapping("/myVendorInfo")
     public HttpResponseVO<VendorVO> getMyVendorInfo() {
         return vendorService.getMyVendorInfo();
+    }
+
+    /**
+     * 刷新平台访问Token
+     */
+    @PostMapping("/refreshPlatformToken")
+    public HttpResponseVO<String> refreshPlatformToken() {
+        return vendorService.refreshPlatformToken();
     }
 
     /**

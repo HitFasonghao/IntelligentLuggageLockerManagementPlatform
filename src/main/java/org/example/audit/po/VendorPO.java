@@ -18,9 +18,6 @@ public class VendorPO {
     @TableId(value = "vendor_id", type = IdType.AUTO)
     private Integer vendorId;
 
-    @TableField("vendor_code")
-    private String vendorCode;
-
     @TableField("company_name")
     private String companyName;
 

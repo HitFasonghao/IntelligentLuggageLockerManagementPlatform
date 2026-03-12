@@ -6,6 +6,7 @@ import org.example.auth.vo.AccessTokenVO;
 import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
 import org.example.auth.vo.PcPermissionVO;
+import org.example.auth.vo.UserBaseInfoVO;
 
 import java.util.List;
 
@@ -52,6 +53,11 @@ public interface LoginService {
      * 获取权限列表
      */
     HttpResponseVO<List<PcPermissionVO>> getPermissions();
+
+    /**
+     * 获取当前用户基本信息
+     */
+    HttpResponseVO<UserBaseInfoVO> getUserInfo();
 
     /**
      * 用户微信小程序登录

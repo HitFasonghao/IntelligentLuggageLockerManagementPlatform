@@ -14,6 +14,8 @@ public class AdminInfoVO {
 
     private String realName;
 
+    private String avatar;
+
     private String email;
 
     private String phone;

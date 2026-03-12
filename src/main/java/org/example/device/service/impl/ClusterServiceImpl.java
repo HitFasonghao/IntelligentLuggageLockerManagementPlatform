@@ -3,6 +3,8 @@ package org.example.device.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.example.auth.common.PcUserInfo;
+import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.vo.HttpResponseVO;
 import org.example.device.dto.ClusterQueryDTO;
@@ -61,6 +63,9 @@ public class ClusterServiceImpl implements ClusterService {
     @Override
     public HttpResponseVO<Map<String, Object>> listClusters(ClusterQueryDTO queryDTO) {
         LambdaQueryWrapper<ClusterPO> wrapper = Wrappers.lambdaQuery();
+
+        // 限制只查询当前厂商的柜群
+        wrapper.eq(ClusterPO::getVendorId, getVendorId());
 
         if (StringUtils.hasText(queryDTO.getName())) {
             wrapper.like(ClusterPO::getName, queryDTO.getName());
@@ -231,7 +236,7 @@ public class ClusterServiceImpl implements ClusterService {
     }
 
     private Integer getVendorId() {
-        // TODO: 从UserContext获取当前用户关联的vendorId
-        return 11;
+        PcUserInfo userInfo = UserContext.get();
+        return userInfo.getVendorId();
     }
 }

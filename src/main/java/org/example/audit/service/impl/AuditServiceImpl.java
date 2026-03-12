@@ -2,12 +2,13 @@ package org.example.audit.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.example.audit.dto.AuditRecordQueryDTO;
 import org.example.audit.dto.FinalApprovalDTO;
 import org.example.audit.dto.PerformanceTestDTO;
 import org.example.audit.dto.QualificationAuditDTO;
 import org.example.audit.dto.FunctionalTestDTO;
+import org.example.audit.dto.VendorAuditQueryDTO;
 import org.example.audit.enums.AuditTaskStatusEnum;
-import org.example.audit.enums.VendorStatusEnum;
 import org.example.audit.mapper.*;
 import org.example.audit.po.*;
 import org.example.audit.service.AuditService;
@@ -26,7 +27,9 @@ import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -60,12 +63,12 @@ public class AuditServiceImpl implements AuditService {
     private PlatformAdminMapper platformAdminMapper;
 
     /**
-     * 获取厂商审核列表
+     * 获取厂商审核列表（支持条件查询+分页）
      * <p>查询 vendor_audit_records 中 admin_id 为当前管理员的记录
      * <p>公司信息从 data 快照中解析，不受后续修改影响
      */
     @Override
-    public HttpResponseVO<List<VendorListVO>> getVendorList(VendorStatusEnum status) {
+    public HttpResponseVO<Map<String, Object>> getVendorList(VendorAuditQueryDTO queryDTO) {
         PcUserInfo userInfo = UserContext.get();
 
         // 查询当前管理员负责的审核记录
@@ -101,15 +104,65 @@ public class AuditServiceImpl implements AuditService {
             return vo;
         }).collect(Collectors.toList());
 
-        // 按状态过滤（如有）
-        if (status != null) {
-            voList = voList.stream()
-                    .filter(vo -> vo.getStatus() == status)
-                    .collect(Collectors.toList());
-        }
+        // 条件过滤
+        List<VendorListVO> filteredList = voList.stream()
+                .filter(vo -> {
+                    if (queryDTO.getCompanyName() != null && !queryDTO.getCompanyName().isEmpty()) {
+                        if (vo.getCompanyName() == null ||
+                                !vo.getCompanyName().toLowerCase().contains(queryDTO.getCompanyName().toLowerCase())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getResult() != null) {
+                        if (vo.getResult() != queryDTO.getResult()) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getRound() != null) {
+                        if (!queryDTO.getRound().equals(vo.getCurrentRound())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getSubmitTimeStart() != null) {
+                        if (vo.getSubmittedTime() == null || vo.getSubmittedTime().isBefore(queryDTO.getSubmitTimeStart())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getSubmitTimeEnd() != null) {
+                        if (vo.getSubmittedTime() == null || vo.getSubmittedTime().isAfter(queryDTO.getSubmitTimeEnd())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getCompletedTimeStart() != null) {
+                        if (vo.getCompletedTime() == null || vo.getCompletedTime().isBefore(queryDTO.getCompletedTimeStart())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getCompletedTimeEnd() != null) {
+                        if (vo.getCompletedTime() == null || vo.getCompletedTime().isAfter(queryDTO.getCompletedTimeEnd())) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+                .collect(Collectors.toList());
 
-        return HttpResponseVO.<List<VendorListVO>>builder()
-                .data(voList)
+        // 内存分页
+        int total = filteredList.size();
+        int pageNum = queryDTO.getPageNum();
+        int pageSize = queryDTO.getPageSize();
+        int fromIndex = Math.min((pageNum - 1) * pageSize, total);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+        List<VendorListVO> pagedList = filteredList.subList(fromIndex, toIndex);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", pagedList);
+        result.put("total", total);
+        result.put("pageNum", pageNum);
+        result.put("pageSize", pageSize);
+
+        return HttpResponseVO.<Map<String, Object>>builder()
+                .data(result)
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("获取厂商列表成功")
                 .build();
@@ -179,7 +232,6 @@ public class AuditServiceImpl implements AuditService {
             vo.setBusinessScope(getStr(dataMap, "businessScope"));
             vo.setApiEndpoint(getStr(dataMap, "apiEndpoint"));
             vo.setVendorAccessToken(getStr(dataMap, "vendorAccessToken"));
-            vo.setPlatformAccessToken(getStr(dataMap, "platformAccessToken"));
         }
         // 从厂商表补充状态信息
         VendorPO vendor = vendorMapper.selectById(record.getVendorId());
@@ -220,10 +272,10 @@ public class AuditServiceImpl implements AuditService {
     }
 
     /**
-     * 获取当前管理员的审核完成记录（查询已完成的任务）
+     * 获取当前管理员的审核完成记录（支持条件查询+分页）
      */
     @Override
-    public HttpResponseVO<List<AuditTaskVO>> getMyAuditRecords() {
+    public HttpResponseVO<Map<String, Object>> getMyAuditRecords(AuditRecordQueryDTO queryDTO) {
         PcUserInfo userInfo = UserContext.get();
 
         LambdaQueryWrapper<AuditTaskPO> wrapper = Wrappers.lambdaQuery();
@@ -236,8 +288,60 @@ public class AuditServiceImpl implements AuditService {
                 .map(this::convertTaskToVO)
                 .collect(Collectors.toList());
 
-        return HttpResponseVO.<List<AuditTaskVO>>builder()
-                .data(voList)
+        // 条件过滤
+        List<AuditTaskVO> filteredList = voList.stream()
+                .filter(vo -> {
+                    if (queryDTO.getCompanyName() != null && !queryDTO.getCompanyName().isEmpty()) {
+                        if (vo.getCompanyName() == null ||
+                                !vo.getCompanyName().toLowerCase().contains(queryDTO.getCompanyName().toLowerCase())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getRound() != null) {
+                        if (!queryDTO.getRound().equals(vo.getRound())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getAuditNodeId() != null) {
+                        if (!queryDTO.getAuditNodeId().equals(vo.getAuditNodeId())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getPassed() != null) {
+                        if (vo.getPassed() == null || !vo.getPassed().equals(queryDTO.getPassed())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getCompletedTimeStart() != null) {
+                        if (vo.getCompletedTime() == null || vo.getCompletedTime().isBefore(queryDTO.getCompletedTimeStart())) {
+                            return false;
+                        }
+                    }
+                    if (queryDTO.getCompletedTimeEnd() != null) {
+                        if (vo.getCompletedTime() == null || vo.getCompletedTime().isAfter(queryDTO.getCompletedTimeEnd())) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+                .collect(Collectors.toList());
+
+        // 内存分页
+        int total = filteredList.size();
+        int pageNum = queryDTO.getPageNum();
+        int pageSize = queryDTO.getPageSize();
+        int fromIndex = Math.min((pageNum - 1) * pageSize, total);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+        List<AuditTaskVO> pagedList = filteredList.subList(fromIndex, toIndex);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", pagedList);
+        result.put("total", total);
+        result.put("pageNum", pageNum);
+        result.put("pageSize", pageSize);
+
+        return HttpResponseVO.<Map<String, Object>>builder()
+                .data(result)
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("获取审核记录成功")
                 .build();

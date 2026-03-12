@@ -8,7 +8,10 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.JavaType;
 import org.apache.ibatis.javassist.bytecode.LineNumberAttribute;
+import org.example.audit.enums.VendorStatusEnum;
+import org.example.audit.mapper.VendorMapper;
 import org.example.audit.mapper.VendorUserRelationMapper;
+import org.example.audit.po.VendorPO;
 import org.example.audit.po.VendorUserRelationPO;
 import org.example.auth.common.PasswordAndPhone;
 import org.example.auth.common.PcUserInfo;
@@ -31,8 +34,8 @@ import org.example.auth.util.TokenUtil;
 import org.example.auth.vo.AccessTokenVO;
 import org.example.auth.vo.CaptchaVO;
 import org.example.auth.vo.HttpResponseVO;
-
 import org.example.auth.vo.PcPermissionVO;
+import org.example.auth.vo.UserBaseInfoVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,10 +45,7 @@ import org.springframework.stereotype.Service;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -69,6 +69,9 @@ public class LoginServiceImpl implements LoginService {
 
     @Autowired
     private VendorUserRelationMapper vendorUserRelationMapper;
+
+    @Autowired
+    private VendorMapper vendorMapper;
 
     /**
      * 账密登录
@@ -203,7 +206,28 @@ public class LoginServiceImpl implements LoginService {
         pcUserInfo.setUserId(vendorUser.getVendorUserId());
         pcUserInfo.setRole(PcUserIdentityEnum.VENDOR_USER);
         //查询该厂商用户关联的厂商列表
-        //pcUserInfo.setVendorIds();
+        LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(VendorUserRelationPO::getVendorUserId, vendorUser.getVendorUserId());
+        List<VendorUserRelationPO> relations = vendorUserRelationMapper.selectList(wrapper);
+        List<Integer> relationVendorIds=new ArrayList<>();
+        for(VendorUserRelationPO relation : relations){
+            relationVendorIds.add(relation.getVendorId());
+        }
+        //过滤出状态为approved的厂商
+        List<Integer> vendorIds=new ArrayList<>();
+        if(!relationVendorIds.isEmpty()){
+            LambdaQueryWrapper<VendorPO> vendorWrapper = Wrappers.lambdaQuery();
+            vendorWrapper.in(VendorPO::getVendorId, relationVendorIds);
+            vendorWrapper.eq(VendorPO::getStatus, VendorStatusEnum.APPROVED);
+            List<VendorPO> approvedVendors = vendorMapper.selectList(vendorWrapper);
+            for(VendorPO vendor : approvedVendors){
+                vendorIds.add(vendor.getVendorId());
+            }
+        }
+        pcUserInfo.setVendorIds(vendorIds);
+        if(!vendorIds.isEmpty()){
+            pcUserInfo.setVendorId(vendorIds.get(0));
+        }
         return pcUserInfo;
     }
 
@@ -496,22 +520,15 @@ public class LoginServiceImpl implements LoginService {
             //普通管理员
             value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"REGULAR_ADMIN");
         }else{
-            LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
-            wrapper.eq(VendorUserRelationPO::getVendorUserId, userInfo.getUserId());
-            List<VendorUserRelationPO> relations = vendorUserRelationMapper.selectList(wrapper);
-
-            if(relations==null|| relations.isEmpty()){
+            if(userInfo.getVendorIds()==null|| userInfo.getVendorIds().isEmpty()){
                 //没有绑定厂商的厂商用户
                 value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"VENDOR_USER");
             }else {
-                VendorUserRelationPO vendor=relations.get(0);
-                if(userInfo.getVendorId()!=null){
-                    for(VendorUserRelationPO vendorUserRelation : relations){
-                        if(vendorUserRelation.getVendorId().equals(userInfo.getVendorId())){
-                            vendor= vendorUserRelation;
-                        }
-                    }
-                }
+                LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
+                wrapper.eq(VendorUserRelationPO::getVendorUserId, userInfo.getUserId());
+                wrapper.eq(VendorUserRelationPO::getVendorId,userInfo.getVendorId());
+                VendorUserRelationPO vendor=vendorUserRelationMapper.selectOne(wrapper);
+
                 if(vendor.getIsMain()){
                     //厂商的超级用户
                     value=redisTemplate.opsForValue().get(Constants.ROLE_PERMISSION_PREFIX+"MAIN_VENDOR_USER");
@@ -532,6 +549,31 @@ public class LoginServiceImpl implements LoginService {
                 .data(permissionVOList == null ? List.of() : permissionVOList)
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("获取权限列表成功")
+                .build();
+    }
+
+    /**
+     * 获取当前用户基本信息
+     */
+    @Override
+    public HttpResponseVO<UserBaseInfoVO> getUserInfo() {
+        PcUserInfo userInfo = UserContext.get();
+        UserBaseInfoVO vo = new UserBaseInfoVO();
+
+        if (userInfo.getRole() == PcUserIdentityEnum.VENDOR_USER) {
+            VendorUserPO vendorUser = vendorUserMapper.selectById(userInfo.getUserId());
+            vo.setUsername(vendorUser.getUsername());
+            vo.setAvatar(vendorUser.getAvatar());
+        } else {
+            PlatformAdminPO admin = platformAdminMapper.selectById(userInfo.getUserId());
+            vo.setUsername(admin.getUsername());
+            vo.setAvatar(admin.getAvatar());
+        }
+
+        return HttpResponseVO.<UserBaseInfoVO>builder()
+                .data(vo)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取用户信息成功")
                 .build();
     }
 }

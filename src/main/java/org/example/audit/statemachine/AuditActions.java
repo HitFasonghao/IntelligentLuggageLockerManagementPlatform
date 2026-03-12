@@ -193,7 +193,7 @@ public class AuditActions {
         vendor.setAdminId(ctx.getUserInfo().getUserId());
         vendor.setEffectiveFrom(dto.getEffectiveFrom());
         vendor.setEffectiveTo(dto.getEffectiveTo());
-        vendor.setVendorCode(generateVendorCode());
+        vendor.setPlatformAccessToken(generatePlatformAccessToken());
 
         record.setResult(AuditRecordResultEnum.APPROVED);
         record.setCompletedTime(LocalDateTime.now());
@@ -242,9 +242,7 @@ public class AuditActions {
 
     // ==================== 工具方法 ====================
 
-    private String generateVendorCode() {
-        String datePart = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-        return "V" + datePart + randomPart;
+    private String generatePlatformAccessToken() {
+        return "PAT-" + UUID.randomUUID().toString().replace("-", "");
     }
 }

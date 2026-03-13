@@ -94,6 +94,14 @@ public class VendorController {
     }
 
     /**
+     * 获取当前用户发起申请且已通过审核的厂商列表
+     */
+    @GetMapping("/myApprovedVendors")
+    public HttpResponseVO<List<VendorVO>> getMyApprovedVendors() {
+        return vendorService.getMyApprovedVendors();
+    }
+
+    /**
      * 刷新平台访问Token
      */
     @PostMapping("/refreshPlatformToken")
@@ -102,37 +110,35 @@ public class VendorController {
     }
 
     /**
-     * 获取审核进度
+     * 根据审核记录ID获取审核流程进度
      */
-    @GetMapping("/{vendorId}/auditProgress")
-    public HttpResponseVO<AuditProgressVO> getAuditProgress(@PathVariable Integer vendorId) {
-        return vendorService.getAuditProgress(vendorId);
+    @GetMapping("/auditProgress/{auditRecordId}")
+    public HttpResponseVO<AuditProgressVO> getAuditProgress(@PathVariable Integer auditRecordId) {
+        return vendorService.getAuditProgress(auditRecordId);
     }
 
     /**
      * 获取厂商下的用户列表
      */
-    @GetMapping("/{vendorId}/users")
-    public HttpResponseVO<List<VendorUserRelationVO>> getVendorUsers(@PathVariable Integer vendorId) {
-        return vendorUserRelationService.getVendorUsers(vendorId);
+    @GetMapping("/users")
+    public HttpResponseVO<List<VendorUserRelationVO>> getVendorUsers() {
+        return vendorUserRelationService.getVendorUsers();
     }
 
     /**
      * 添加厂商用户（通过用户名）
      */
-    @PostMapping("/{vendorId}/users")
-    public HttpResponseVO<String> addVendorUser(@PathVariable Integer vendorId,
-                                                @RequestParam String username) {
-        return vendorUserRelationService.addVendorUser(vendorId, username);
+    @PostMapping("/users")
+    public HttpResponseVO<String> addVendorUser(@RequestParam String username) {
+        return vendorUserRelationService.addVendorUser(username);
     }
 
     /**
      * 移除厂商用户
      */
-    @DeleteMapping("/{vendorId}/users/{vendorUserId}")
-    public HttpResponseVO<String> removeVendorUser(@PathVariable Integer vendorId,
-                                                   @PathVariable Integer vendorUserId) {
-        return vendorUserRelationService.removeVendorUser(vendorId, vendorUserId);
+    @DeleteMapping("/users/{vendorUserRelationId}")
+    public HttpResponseVO<String> removeVendorUser(@PathVariable Integer vendorUserRelationId) {
+        return vendorUserRelationService.removeVendorUser(vendorUserRelationId);
     }
 
     /**

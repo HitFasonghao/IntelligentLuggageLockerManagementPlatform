@@ -146,6 +146,30 @@ public class CabinetServiceImpl implements CabinetService {
                 }
                 pageNum++;
             }
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            log.error("同步设备异常：无法连接厂商接口 {}", apiEndpoint, e);
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("厂商接口连接失败，请检查接口地址配置是否正确（" + apiEndpoint + "）")
+                    .build();
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            log.error("同步设备异常：厂商接口返回 {}", e.getStatusCode(), e);
+            String detail;
+            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
+                detail = "厂商接口拒绝访问，请检查访问Token配置是否正确";
+            } else {
+                detail = "厂商接口请求失败（HTTP " + e.getStatusCode().value() + "）";
+            }
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg(detail)
+                    .build();
+        } catch (org.springframework.web.client.HttpServerErrorException e) {
+            log.error("同步设备异常：厂商接口服务端错误 {}", e.getStatusCode(), e);
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("厂商接口服务端异常（HTTP " + e.getStatusCode().value() + "），请联系厂商排查")
+                    .build();
         } catch (Exception e) {
             log.error("同步设备异常", e);
             return HttpResponseVO.<String>builder()

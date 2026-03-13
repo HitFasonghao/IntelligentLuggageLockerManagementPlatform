@@ -36,17 +36,16 @@ public class VendorUserRelationServiceImpl implements VendorUserRelationService 
      * 获取厂商下的用户列表
      */
     @Override
-    public HttpResponseVO<List<VendorUserRelationVO>> getVendorUsers(Integer vendorId) {
+    public HttpResponseVO<List<VendorUserRelationVO>> getVendorUsers() {
         PcUserInfo userInfo = UserContext.get();
+        Integer vendorId = userInfo.getVendorId();
 
-        // 厂商用户需校验权限（必须是该厂商的主管理员）
-        if (userInfo.getRole() == PcUserIdentityEnum.VENDOR_USER) {
-            if (!isMainAdmin(userInfo.getUserId(), vendorId)) {
-                return HttpResponseVO.<List<VendorUserRelationVO>>builder()
-                        .code(HttpStatusConstants.ERROR)
-                        .msg("仅主管理员可查看用户列表")
-                        .build();
-            }
+        // 校验是否为该厂商的主管理员
+        if (!isMainAdmin(userInfo.getUserId(), vendorId)) {
+            return HttpResponseVO.<List<VendorUserRelationVO>>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("仅主管理员可查看用户列表")
+                    .build();
         }
 
         LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
@@ -80,17 +79,16 @@ public class VendorUserRelationServiceImpl implements VendorUserRelationService 
      * 添加厂商用户（通过用户名）
      */
     @Override
-    public HttpResponseVO<String> addVendorUser(Integer vendorId, String username) {
+    public HttpResponseVO<String> addVendorUser(String username) {
         PcUserInfo userInfo = UserContext.get();
+        Integer vendorId = userInfo.getVendorId();
 
-        // 校验操作者是主管理员
-        if (userInfo.getRole() == PcUserIdentityEnum.VENDOR_USER) {
-            if (!isMainAdmin(userInfo.getUserId(), vendorId)) {
-                return HttpResponseVO.<String>builder()
-                        .code(HttpStatusConstants.ERROR)
-                        .msg("仅主管理员可添加用户")
-                        .build();
-            }
+        // 校验是否为该厂商的主管理员
+        if (!isMainAdmin(userInfo.getUserId(), vendorId)) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("仅主管理员可添加用户")
+                    .build();
         }
 
         // 通过用户名查找用户
@@ -131,31 +129,36 @@ public class VendorUserRelationServiceImpl implements VendorUserRelationService 
      * 移除厂商用户
      */
     @Override
-    public HttpResponseVO<String> removeVendorUser(Integer vendorId, Integer vendorUserId) {
+    public HttpResponseVO<String> removeVendorUser(Integer vendorUserRelationId) {
         PcUserInfo userInfo = UserContext.get();
+        Integer vendorId = userInfo.getVendorId();
 
-        // 校验操作者是主管理员
-        if (userInfo.getRole() == PcUserIdentityEnum.VENDOR_USER) {
-            if (!isMainAdmin(userInfo.getUserId(), vendorId)) {
-                return HttpResponseVO.<String>builder()
-                        .code(HttpStatusConstants.ERROR)
-                        .msg("仅主管理员可移除用户")
-                        .build();
-            }
+        // 校验是否为该厂商的主管理员
+        if (!isMainAdmin(userInfo.getUserId(), vendorId)) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("仅主管理员可移除用户")
+                    .build();
+        }
+
+        // 查询关联关系
+        VendorUserRelationPO relation = vendorUserRelationMapper.selectById(vendorUserRelationId);
+        if (relation == null || !relation.getVendorId().equals(vendorId)) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("关联关系不存在")
+                    .build();
         }
 
         // 不允许移除自己（主管理员）
-        if (vendorUserId.equals(userInfo.getUserId())) {
+        if (relation.getVendorUserId().equals(userInfo.getUserId())) {
             return HttpResponseVO.<String>builder()
                     .code(HttpStatusConstants.ERROR)
                     .msg("不能移除自己")
                     .build();
         }
 
-        LambdaQueryWrapper<VendorUserRelationPO> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(VendorUserRelationPO::getVendorId, vendorId);
-        wrapper.eq(VendorUserRelationPO::getVendorUserId, vendorUserId);
-        int result = vendorUserRelationMapper.delete(wrapper);
+        int result = vendorUserRelationMapper.deleteById(vendorUserRelationId);
 
         if (result > 0) {
             return HttpResponseVO.<String>builder()
@@ -165,7 +168,7 @@ public class VendorUserRelationServiceImpl implements VendorUserRelationService 
         }
         return HttpResponseVO.<String>builder()
                 .code(HttpStatusConstants.ERROR)
-                .msg("移除用户失败，关联关系不存在")
+                .msg("移除用户失败")
                 .build();
     }
 

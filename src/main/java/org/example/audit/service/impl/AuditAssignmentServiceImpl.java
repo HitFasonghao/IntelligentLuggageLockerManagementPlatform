@@ -15,7 +15,9 @@ import org.example.audit.vo.AdminOptionVO;
 import org.example.audit.vo.AssignmentVendorVO;
 import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.mapper.PlatformAdminMapper;
+import org.example.auth.mapper.VendorUserMapper;
 import org.example.auth.po.PlatformAdminPO;
+import org.example.auth.po.VendorUserPO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -45,6 +47,9 @@ public class AuditAssignmentServiceImpl implements AuditAssignmentService {
 
     @Autowired
     private PlatformAdminMapper platformAdminMapper;
+
+    @Autowired
+    private VendorUserMapper vendorUserMapper;
 
     /**
      * 获取待分配的厂商列表
@@ -92,6 +97,14 @@ public class AuditAssignmentServiceImpl implements AuditAssignmentService {
             AuditNodePO node = auditNodeMapper.selectById(activeTask.getAuditNodeId());
             if (node != null) {
                 vo.setCurrentNodeName(node.getName());
+            }
+
+            // 填充申请用户名称
+            if (record.getVendorUserId() != null) {
+                VendorUserPO vendorUser = vendorUserMapper.selectById(record.getVendorUserId());
+                if (vendorUser != null) {
+                    vo.setVendorUserName(vendorUser.getRealName() != null ? vendorUser.getRealName() : vendorUser.getUsername());
+                }
             }
 
             result.add(vo);

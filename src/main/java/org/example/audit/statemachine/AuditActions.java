@@ -37,7 +37,7 @@ public class AuditActions {
 
         // 创建第1轮审核记录及第一个节点任务
         nodeHelper.createRecordWithFirstTask(
-                vendor.getVendorId(), 1, AuditTypeEnum.INITIAL, dto);
+                vendor.getVendorId(), ctx.getUserInfo().getUserId(), 1, AuditTypeEnum.INITIAL, dto);
 
         return "入驻申请提交成功";
     }
@@ -57,7 +57,7 @@ public class AuditActions {
 
         // 创建新一轮审核记录及第一个节点任务
         nodeHelper.createRecordWithFirstTask(
-                vendor.getVendorId(), nextRound, AuditTypeEnum.RENEWAL, dto);
+                vendor.getVendorId(), ctx.getUserInfo().getUserId(), nextRound, AuditTypeEnum.RENEWAL, dto);
 
         return "重新提交成功";
     }

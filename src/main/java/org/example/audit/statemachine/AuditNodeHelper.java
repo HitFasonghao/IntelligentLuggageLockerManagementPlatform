@@ -56,10 +56,11 @@ public class AuditNodeHelper {
     /**
      * 创建审核记录，并只为第一个启用的节点创建任务
      */
-    public VendorAuditRecordPO createRecordWithFirstTask(Integer vendorId, int round,
+    public VendorAuditRecordPO createRecordWithFirstTask(Integer vendorId, Integer vendorUserId, int round,
                                                           AuditTypeEnum type, Object snapshot) {
         VendorAuditRecordPO record = new VendorAuditRecordPO();
         record.setVendorId(vendorId);
+        record.setVendorUserId(vendorUserId);
         record.setRound(round);
         record.setType(type);
         record.setData(snapshot);

@@ -140,13 +140,14 @@ CREATE TABLE vendor_user_relation (
 CREATE TABLE vendor_audit_records (
                                       audit_record_id INT NOT NULL AUTO_INCREMENT COMMENT '审核记录标识',
                                       vendor_id INT NOT NULL COMMENT '厂商标识',
+                                      vendor_user_id INT DEFAULT NULL COMMENT '申请用户标识（厂商用户）',
                                       round INT NOT NULL COMMENT '审核轮次',
                                       type ENUM('initial','renewal','change','complaint') NOT NULL COMMENT '审核类型',
                                       data JSON NOT NULL COMMENT '提交数据快照',
                                       admin_id INT NOT NULL COMMENT '审核员（平台管理员）标识',
-                                      result VARCHAR(50) DEFAULT 'not_started' COMMENT '审核进度结果',
                                       created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                                       completed_time TIMESTAMP NULL DEFAULT NULL COMMENT '完成时间',
+                                      result VARCHAR(50) DEFAULT 'not_started' COMMENT '审核进度结果',
                                       PRIMARY KEY (audit_record_id),
                                       KEY idx_vendor_id (vendor_id),
                                       CONSTRAINT fk_var_vendor_id FOREIGN KEY (vendor_id) REFERENCES vendors (vendor_id) ON DELETE CASCADE
@@ -187,12 +188,6 @@ CREATE TABLE audit_tasks (
                              CONSTRAINT fk_at_audit_node_id FOREIGN KEY (audit_node_id) REFERENCES audit_nodes (audit_node_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审核任务表';
 
--- 审核节点初始数据
-INSERT INTO audit_nodes (name, type, `order`, auto_pass, timeout_hours, is_active) VALUES
-('资质审核', 'qualification', 1, FALSE, 48, TRUE),
-('功能测试', 'functional_test', 2, FALSE, 72, TRUE),
-('性能测试', 'performance', 3, FALSE, 72, TRUE),
-('人工审核', 'manual_review', 4, FALSE, 24, TRUE);
 
 -- 寄存柜种类表
 CREATE TABLE cabinet_kinds (
@@ -203,7 +198,7 @@ CREATE TABLE cabinet_kinds (
                                charge DECIMAL(10,2) NOT NULL COMMENT '收费金额(单位/元)',
                                time_unit ENUM('anHour','halfAnHour','tenMinutes') NOT NULL COMMENT '收费时间单位',
                                PRIMARY KEY (kind_id),
-                               CONSTRAINT fk_cabinet_kinds_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (vendor_id)
+                               CONSTRAINT fk_cabinets_kinds_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (vendor_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='寄存柜种类表';
 
 -- 柜群表

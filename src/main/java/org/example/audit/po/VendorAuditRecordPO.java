@@ -23,6 +23,10 @@ public class VendorAuditRecordPO {
     @TableField("vendor_id")
     private Integer vendorId;
 
+    /** 提交申请的厂商用户ID */
+    @TableField("vendor_user_id")
+    private Integer vendorUserId;
+
     @TableField("round")
     private Integer round;
 

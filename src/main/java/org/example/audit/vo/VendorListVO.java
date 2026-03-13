@@ -27,6 +27,8 @@ public class VendorListVO {
     private LocalDateTime submittedTime;
     private LocalDateTime createdTime;
     private LocalDateTime completedTime;
+    /** 申请用户名称 */
+    private String vendorUserName;
     /** 是否可重新申请 */
     private Boolean canResubmit;
 }

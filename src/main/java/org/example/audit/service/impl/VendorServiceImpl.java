@@ -262,82 +262,74 @@ public class VendorServiceImpl implements VendorService {
     }
 
     /**
-     * 获取审核进度
+     * 根据审核记录ID获取审核流程进度
      */
     @Override
-    public HttpResponseVO<AuditProgressVO> getAuditProgress(Integer vendorId) {
+    public HttpResponseVO<AuditProgressVO> getAuditProgress(Integer auditRecordId) {
+        VendorAuditRecordPO record = vendorAuditRecordMapper.selectById(auditRecordId);
+        if (record == null) {
+            return HttpResponseVO.<AuditProgressVO>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("审核记录不存在")
+                    .build();
+        }
+
         PcUserInfo userInfo = UserContext.get();
         if (userInfo.getRole() == PcUserIdentityEnum.VENDOR_USER
-                && !isVendorUser(userInfo.getUserId(), vendorId)) {
+                && !isVendorUser(userInfo.getUserId(), record.getVendorId())) {
             return HttpResponseVO.<AuditProgressVO>builder()
                     .code(HttpStatusConstants.ERROR)
-                    .msg("无权查看该厂商审核进度")
+                    .msg("无权查看该审核进度")
                     .build();
         }
 
-        VendorPO vendor = vendorMapper.selectById(vendorId);
-        if (vendor == null) {
-            return HttpResponseVO.<AuditProgressVO>builder()
-                    .code(HttpStatusConstants.ERROR)
-                    .msg("厂商不存在")
-                    .build();
-        }
-
-        // 获取最新一轮审核记录
-        LambdaQueryWrapper<VendorAuditRecordPO> recordWrapper = Wrappers.lambdaQuery();
-        recordWrapper.eq(VendorAuditRecordPO::getVendorId, vendorId);
-        recordWrapper.orderByDesc(VendorAuditRecordPO::getRound);
-        recordWrapper.last("LIMIT 1");
-        VendorAuditRecordPO latestRecord = vendorAuditRecordMapper.selectOne(recordWrapper);
+        VendorPO vendor = vendorMapper.selectById(record.getVendorId());
 
         AuditProgressVO progressVO = new AuditProgressVO();
-        progressVO.setVendorStatus(vendor.getStatus().getValue());
+        progressVO.setVendorStatus(vendor != null ? vendor.getStatus().getValue() : null);
+        progressVO.setCurrentRound(record.getRound());
+        progressVO.setAuditRecord(mapStructMapper.auditRecordPoToVo(record));
 
-        if (latestRecord != null) {
-            progressVO.setCurrentRound(latestRecord.getRound());
-            progressVO.setAuditRecord(mapStructMapper.auditRecordPoToVo(latestRecord));
+        // 查询所有启用的审核节点，按顺序展示
+        LambdaQueryWrapper<AuditNodePO> nodeWrapper = Wrappers.lambdaQuery();
+        nodeWrapper.eq(AuditNodePO::getIsActive, true);
+        nodeWrapper.orderByAsc(AuditNodePO::getOrder);
+        List<AuditNodePO> allNodes = auditNodeMapper.selectList(nodeWrapper);
 
-            // 查询所有启用的审核节点，按顺序展示
-            LambdaQueryWrapper<AuditNodePO> nodeWrapper = Wrappers.lambdaQuery();
-            nodeWrapper.eq(AuditNodePO::getIsActive, true);
-            nodeWrapper.orderByAsc(AuditNodePO::getOrder);
-            List<AuditNodePO> allNodes = auditNodeMapper.selectList(nodeWrapper);
+        // 查询该审核记录下已创建的任务
+        LambdaQueryWrapper<AuditTaskPO> taskWrapper = Wrappers.lambdaQuery();
+        taskWrapper.eq(AuditTaskPO::getAuditRecordId, auditRecordId);
+        List<AuditTaskPO> tasks = auditTaskMapper.selectList(taskWrapper);
+        // 按节点ID索引任务
+        java.util.Map<Integer, AuditTaskPO> taskMap = tasks.stream()
+                .collect(Collectors.toMap(AuditTaskPO::getAuditNodeId, t -> t));
 
-            // 查询该轮次已创建的任务
-            LambdaQueryWrapper<AuditTaskPO> taskWrapper = Wrappers.lambdaQuery();
-            taskWrapper.eq(AuditTaskPO::getAuditRecordId, latestRecord.getAuditRecordId());
-            List<AuditTaskPO> tasks = auditTaskMapper.selectList(taskWrapper);
-            // 按节点ID索引任务
-            java.util.Map<Integer, AuditTaskPO> taskMap = tasks.stream()
-                    .collect(Collectors.toMap(AuditTaskPO::getAuditNodeId, t -> t));
+        List<AuditInstanceVO> instanceVOs = new ArrayList<>();
+        for (AuditNodePO node : allNodes) {
+            AuditInstanceVO vo = new AuditInstanceVO();
+            vo.setAuditNodeId(node.getAuditNodeId());
+            vo.setNodeName(node.getName());
+            vo.setNodeType(node.getType() != null ? node.getType().getValue() : null);
 
-            List<AuditInstanceVO> instanceVOs = new ArrayList<>();
-            for (AuditNodePO node : allNodes) {
-                AuditInstanceVO vo = new AuditInstanceVO();
-                vo.setAuditNodeId(node.getAuditNodeId());
-                vo.setNodeName(node.getName());
-                vo.setNodeType(node.getType() != null ? node.getType().getValue() : null);
-
-                AuditTaskPO task = taskMap.get(node.getAuditNodeId());
-                if (task != null) {
-                    vo.setAuditTaskId(task.getAuditTaskId());
-                    vo.setVendorId(task.getVendorId());
-                    vo.setAuditRecordId(task.getAuditRecordId());
-                    vo.setCreatedTime(task.getCreatedTime());
-                    vo.setCompletedTime(task.getCompletedTime());
-                    vo.setPassed(task.getPassed());
-                    vo.setNotes(task.getNotes());
-                    if (task.getAdminId() != null) {
-                        PlatformAdminPO admin = platformAdminMapper.selectById(task.getAdminId());
-                        if (admin != null) {
-                            vo.setAdminName(admin.getRealName() != null ? admin.getRealName() : admin.getUsername());
-                        }
+            AuditTaskPO task = taskMap.get(node.getAuditNodeId());
+            if (task != null) {
+                vo.setAuditTaskId(task.getAuditTaskId());
+                vo.setVendorId(task.getVendorId());
+                vo.setAuditRecordId(task.getAuditRecordId());
+                vo.setCreatedTime(task.getCreatedTime());
+                vo.setCompletedTime(task.getCompletedTime());
+                vo.setPassed(task.getPassed());
+                vo.setNotes(task.getNotes());
+                if (task.getAdminId() != null) {
+                    PlatformAdminPO admin = platformAdminMapper.selectById(task.getAdminId());
+                    if (admin != null) {
+                        vo.setAdminName(admin.getRealName() != null ? admin.getRealName() : admin.getUsername());
                     }
                 }
-                instanceVOs.add(vo);
             }
-            progressVO.setInstances(instanceVOs);
+            instanceVOs.add(vo);
         }
+        progressVO.setInstances(instanceVOs);
 
         return HttpResponseVO.<AuditProgressVO>builder()
                 .data(progressVO)
@@ -389,11 +381,12 @@ public class VendorServiceImpl implements VendorService {
     public HttpResponseVO<Map<String, Object>> getMyAuditRecords(VendorProgressQueryDTO queryDTO) {
         PcUserInfo userInfo = UserContext.get();
 
-        LambdaQueryWrapper<VendorUserRelationPO> relWrapper = Wrappers.lambdaQuery();
-        relWrapper.eq(VendorUserRelationPO::getVendorUserId, userInfo.getUserId());
-        List<VendorUserRelationPO> relations = vendorUserRelationMapper.selectList(relWrapper);
+        // 只查询当前用户发起的审核记录
+        LambdaQueryWrapper<VendorAuditRecordPO> allWrapper = Wrappers.lambdaQuery();
+        allWrapper.eq(VendorAuditRecordPO::getVendorUserId, userInfo.getUserId());
+        List<VendorAuditRecordPO> allRecords = vendorAuditRecordMapper.selectList(allWrapper);
 
-        if (relations == null || relations.isEmpty()) {
+        if (allRecords == null || allRecords.isEmpty()) {
             Map<String, Object> emptyResult = new HashMap<>();
             emptyResult.put("list", List.of());
             emptyResult.put("total", 0);
@@ -405,15 +398,6 @@ public class VendorServiceImpl implements VendorService {
                     .msg("暂无审核记录")
                     .build();
         }
-
-        List<Integer> vendorIds = relations.stream()
-                .map(VendorUserRelationPO::getVendorId)
-                .collect(Collectors.toList());
-
-        // 查询所有记录，用于计算每个厂商的最大轮次
-        LambdaQueryWrapper<VendorAuditRecordPO> allWrapper = Wrappers.lambdaQuery();
-        allWrapper.in(VendorAuditRecordPO::getVendorId, vendorIds);
-        List<VendorAuditRecordPO> allRecords = vendorAuditRecordMapper.selectList(allWrapper);
 
         // 每个厂商的最大轮次
         java.util.Map<Integer, Integer> maxRoundMap = allRecords.stream()
@@ -531,6 +515,45 @@ public class VendorServiceImpl implements VendorService {
                 .data(newToken)
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("平台访问Token已刷新")
+                .build();
+    }
+
+    /**
+     * 获取当前用户发起申请且已通过审核的厂商列表
+     */
+    @Override
+    public HttpResponseVO<List<VendorVO>> getMyApprovedVendors() {
+        PcUserInfo userInfo = UserContext.get();
+
+        // 查询当前用户发起的、已通过审核的记录
+        LambdaQueryWrapper<VendorAuditRecordPO> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(VendorAuditRecordPO::getVendorUserId, userInfo.getUserId());
+        wrapper.eq(VendorAuditRecordPO::getResult, AuditRecordResultEnum.APPROVED);
+        List<VendorAuditRecordPO> approvedRecords = vendorAuditRecordMapper.selectList(wrapper);
+
+        if (approvedRecords == null || approvedRecords.isEmpty()) {
+            return HttpResponseVO.<List<VendorVO>>builder()
+                    .data(List.of())
+                    .code(HttpStatusConstants.SUCCESS)
+                    .msg("暂无已通过的资质")
+                    .build();
+        }
+
+        // 取去重的vendorId
+        List<Integer> vendorIds = approvedRecords.stream()
+                .map(VendorAuditRecordPO::getVendorId)
+                .distinct()
+                .collect(Collectors.toList());
+        List<VendorPO> vendors = vendorMapper.selectBatchIds(vendorIds);
+
+        List<VendorVO> voList = vendors.stream()
+                .map(mapStructMapper::vendorPoToVo)
+                .collect(Collectors.toList());
+
+        return HttpResponseVO.<List<VendorVO>>builder()
+                .data(voList)
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("获取已通过资质列表成功")
                 .build();
     }
 

@@ -20,6 +20,9 @@ public class AssignmentVendorVO {
     private LocalDateTime submittedTime;
     private Integer currentRound;
 
+    /** 申请用户名称 */
+    private String vendorUserName;
+
     /** 当前活跃的审核任务ID */
     private Integer auditTaskId;
     /** 当前活跃的审核节点ID */

@@ -14,11 +14,11 @@ import java.util.List;
 public interface VendorUserRelationService {
 
     /** 获取厂商下的用户列表 */
-    HttpResponseVO<List<VendorUserRelationVO>> getVendorUsers(Integer vendorId);
+    HttpResponseVO<List<VendorUserRelationVO>> getVendorUsers();
 
     /** 添加厂商用户（通过用户名） */
-    HttpResponseVO<String> addVendorUser(Integer vendorId, String username);
+    HttpResponseVO<String> addVendorUser(String username);
 
     /** 移除厂商用户 */
-    HttpResponseVO<String> removeVendorUser(Integer vendorId, Integer vendorUserId);
+    HttpResponseVO<String> removeVendorUser(Integer vendorUserRelationId);
 }

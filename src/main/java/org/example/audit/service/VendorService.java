@@ -36,12 +36,15 @@ public interface VendorService {
     /** 获取当前厂商用户关联的厂商信息（单个） */
     HttpResponseVO<VendorVO> getMyVendorInfo();
 
-    /** 获取审核进度 */
-    HttpResponseVO<AuditProgressVO> getAuditProgress(Integer vendorId);
+    /** 根据审核记录ID获取审核进度 */
+    HttpResponseVO<AuditProgressVO> getAuditProgress(Integer auditRecordId);
 
     /** 获取当前厂商用户关联厂商的审核记录列表 */
     HttpResponseVO<Map<String, Object>> getMyAuditRecords(VendorProgressQueryDTO queryDTO);
 
     /** 刷新平台访问Token */
     HttpResponseVO<String> refreshPlatformToken();
+
+    /** 获取当前用户发起申请且已通过审核的厂商列表 */
+    HttpResponseVO<List<VendorVO>> getMyApprovedVendors();
 }

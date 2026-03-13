@@ -22,7 +22,9 @@ import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.mapper.PlatformAdminMapper;
+import org.example.auth.mapper.VendorUserMapper;
 import org.example.auth.po.PlatformAdminPO;
+import org.example.auth.po.VendorUserPO;
 import org.example.auth.vo.HttpResponseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -62,6 +64,9 @@ public class AuditServiceImpl implements AuditService {
     @Autowired
     private PlatformAdminMapper platformAdminMapper;
 
+    @Autowired
+    private VendorUserMapper vendorUserMapper;
+
     /**
      * 获取厂商审核列表（支持条件查询+分页）
      * <p>查询 vendor_audit_records 中 admin_id 为当前管理员的记录
@@ -92,6 +97,14 @@ public class AuditServiceImpl implements AuditService {
                 vo.setShortName(getStr(dataMap, "shortName"));
                 vo.setContactPerson(getStr(dataMap, "contactPerson"));
                 vo.setContactPhone(getStr(dataMap, "contactPhone"));
+            }
+
+            // 填充申请用户名称
+            if (record.getVendorUserId() != null) {
+                VendorUserPO vendorUser = vendorUserMapper.selectById(record.getVendorUserId());
+                if (vendorUser != null) {
+                    vo.setVendorUserName(vendorUser.getRealName() != null ? vendorUser.getRealName() : vendorUser.getUsername());
+                }
             }
 
             // 从厂商表获取当前状态和提交时间

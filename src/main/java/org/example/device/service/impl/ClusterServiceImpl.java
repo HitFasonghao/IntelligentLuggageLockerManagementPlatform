@@ -7,6 +7,7 @@ import org.example.auth.common.PcUserInfo;
 import org.example.auth.common.UserContext;
 import org.example.auth.constants.HttpStatusConstants;
 import org.example.auth.vo.HttpResponseVO;
+import org.example.device.dto.AssignNumberDTO;
 import org.example.device.dto.ClusterQueryDTO;
 import org.example.device.dto.CreateClusterDTO;
 import org.example.device.dto.UpdateCabinetStatusDTO;
@@ -188,12 +189,18 @@ public class ClusterServiceImpl implements ClusterService {
             }
         }
 
-        // 启用操作：只能在forbidden状态下执行
+        // 启用操作：只能在forbidden状态下执行，且必须已分配格口号
         if (targetStatus == CabinetStatusEnum.FREE) {
             if (currentStatus != CabinetStatusEnum.FORBIDDEN) {
                 return HttpResponseVO.<String>builder()
                         .code(HttpStatusConstants.ERROR)
                         .msg("只能启用处于禁用状态的寄存柜")
+                        .build();
+            }
+            if (cabinet.getNumber() == null) {
+                return HttpResponseVO.<String>builder()
+                        .code(HttpStatusConstants.ERROR)
+                        .msg("请先为寄存柜分配格口号后再启用")
                         .build();
             }
         }
@@ -227,11 +234,60 @@ public class ClusterServiceImpl implements ClusterService {
         cabinetMapper.update(null, Wrappers.<CabinetPO>lambdaUpdate()
                 .eq(CabinetPO::getCabinetId, cabinetId)
                 .set(CabinetPO::getClusterId, null)
+                .set(CabinetPO::getNumber, null)
                 .set(CabinetPO::getStatus, CabinetStatusEnum.FORBIDDEN));
 
         return HttpResponseVO.<String>builder()
                 .code(HttpStatusConstants.SUCCESS)
                 .msg("删除成功")
+                .build();
+    }
+
+    @Override
+    public HttpResponseVO<String> assignNumber(AssignNumberDTO dto) {
+        CabinetPO cabinet = cabinetMapper.selectById(dto.getCabinetId());
+        if (cabinet == null) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("寄存柜不存在")
+                    .build();
+        }
+
+        if (cabinet.getClusterId() == null) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("该寄存柜未分配柜群，无法设置格口号")
+                    .build();
+        }
+
+        if (cabinet.getStatus() != CabinetStatusEnum.FORBIDDEN) {
+            return HttpResponseVO.<String>builder()
+                    .code(HttpStatusConstants.ERROR)
+                    .msg("只能在禁用状态下分配格口号")
+                    .build();
+        }
+
+        // 如果格口号不为空，检查同一柜群内是否已存在该格口号
+        if (dto.getNumber() != null) {
+            long count = cabinetMapper.selectCount(Wrappers.<CabinetPO>lambdaQuery()
+                    .eq(CabinetPO::getClusterId, cabinet.getClusterId())
+                    .eq(CabinetPO::getNumber, dto.getNumber())
+                    .ne(CabinetPO::getCabinetId, dto.getCabinetId()));
+            if (count > 0) {
+                return HttpResponseVO.<String>builder()
+                        .code(HttpStatusConstants.ERROR)
+                        .msg("该柜群中已存在格口号 " + dto.getNumber() + "，请更换")
+                        .build();
+            }
+        }
+
+        cabinetMapper.update(null, Wrappers.<CabinetPO>lambdaUpdate()
+                .eq(CabinetPO::getCabinetId, dto.getCabinetId())
+                .set(CabinetPO::getNumber, dto.getNumber()));
+
+        return HttpResponseVO.<String>builder()
+                .code(HttpStatusConstants.SUCCESS)
+                .msg("设置格口号成功")
                 .build();
     }
 

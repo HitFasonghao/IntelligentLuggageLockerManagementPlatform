@@ -2,6 +2,7 @@ package org.example.device.controller;
 
 import jakarta.validation.Valid;
 import org.example.auth.vo.HttpResponseVO;
+import org.example.device.dto.AssignNumberDTO;
 import org.example.device.dto.ClusterQueryDTO;
 import org.example.device.dto.CreateClusterDTO;
 import org.example.device.dto.UpdateCabinetStatusDTO;
@@ -42,5 +43,10 @@ public class ClusterController {
     @DeleteMapping("/cabinet/{cabinetId}")
     public HttpResponseVO<String> removeCabinetFromCluster(@PathVariable Integer cabinetId) {
         return clusterService.removeCabinetFromCluster(cabinetId);
+    }
+
+    @PutMapping("/cabinet/number")
+    public HttpResponseVO<String> assignNumber(@RequestBody @Valid AssignNumberDTO dto) {
+        return clusterService.assignNumber(dto);
     }
 }
